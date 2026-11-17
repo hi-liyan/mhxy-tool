@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ITEM_CATEGORIES, type Item } from "../types";
+import type { Item } from "../types";
 import { useStore } from "../store";
 import { ItemCreation, ItemEditor, ItemIcon } from "../components/items";
 import { fmtCoin } from "../utils";
@@ -8,7 +8,6 @@ type SortKey = "name" | "value" | "count";
 
 export default function ItemsPage() {
   const { db, items } = useStore();
-  const [category, setCategory] = useState("全部");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<SortKey>("name");
   const [editing, setEditing] = useState<Item | null>(null);
@@ -20,8 +19,7 @@ export default function ItemsPage() {
     return m;
   }, [db.sessions]);
   const userItems = items.filter((item) => item.origin === "user");
-  const categories = [...new Set([...ITEM_CATEGORIES, ...userItems.map((item) => item.category).filter((c): c is string => !!c)])];
-  const list = userItems.filter((item) => (category === "全部" || (item.category ?? "其他") === category) && (!q.trim() || item.name.includes(q.trim())));
+  const list = userItems.filter((item) => !q.trim() || item.name.includes(q.trim()));
   list.sort((a, b) => {
     if (sort === "value") return b.value - a.value || a.name.localeCompare(b.name, "zh");
     if (sort === "count") return (counts.get(b.id) ?? 0) - (counts.get(a.id) ?? 0) || a.name.localeCompare(b.name, "zh");
@@ -34,10 +32,6 @@ export default function ItemsPage() {
         <h1>物品库 <span className="count-badge">{list.length} / {userItems.length}</span></h1>
         <div className="actions">
           <input className="search" placeholder="搜索物品…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <select className="item-category-filter" aria-label="物品分类" value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="全部">全部分类</option>
-            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
           <div className="seg" aria-label="排序">
             <button className={sort === "name" ? "active" : ""} onClick={() => setSort("name")}>名称</button>
             <button className={sort === "count" ? "active" : ""} onClick={() => setSort("count")}>常用</button>

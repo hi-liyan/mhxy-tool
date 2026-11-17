@@ -23,7 +23,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const items = useMemo(() => db ? [
     ...BUILTIN_CATALOG.map((item): Item => ({
-      id: item.id, name: item.name, category: item.category,
+      id: item.id, name: item.name,
       description: item.description ?? undefined, origin: "system",
       value: db.builtinValues[item.id] ?? 0, image: item.iconPath ? icons[item.iconPath] : undefined, createdAt: 0,
     })),

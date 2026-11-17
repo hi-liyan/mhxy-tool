@@ -792,10 +792,8 @@ nav button.active {
 }
 .items-page .page-head { flex-wrap: wrap; }
 .items-page .actions { flex-wrap: wrap; }
-.items-page .item-category-filter { width: 120px; }
 .picker-filters { display: flex; gap: 8px; }
 .picker-filters .search { flex: 1; min-width: 0; }
-.picker-filters select { width: 120px; }
 .template-hint { margin: 0 0 12px; }
 .template-grid { margin-top: 12px; max-height: min(45vh, 360px); }
 .items-content {

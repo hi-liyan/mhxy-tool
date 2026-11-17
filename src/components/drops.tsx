@@ -1,21 +1,23 @@
 import { useState } from "react";
-import type { Drop } from "../types";
+import type { Drop, Item } from "../types";
 import { useStore } from "../store";
 import { dropValue, fmtCoin, fmtTime, fromWan, uid } from "../utils";
 import { ItemIcon, ItemPicker } from "./items";
-import { WanInput, useUi } from "./ui";
+import { Modal, WanInput, useUi } from "./ui";
 
 const QUICK_WAN = [10, 50, 100, 500];
 
 /** 录入一条收入：梦幻币 或 物品 */
 export function DropForm({ onAdd, defaultTime }: { onAdd: (d: Drop) => void; defaultTime?: () => number }) {
-  const { items } = useStore();
+  const { items, update } = useStore();
   const { toast } = useUi();
   const [tab, setTab] = useState<"coin" | "item">("coin");
   const [coin, setCoin] = useState("");
   const [itemId, setItemId] = useState<string | null>(null);
   const [qty, setQty] = useState("1");
   const [note, setNote] = useState("");
+  const [pending, setPending] = useState<{ item: Item; qty: number; note?: string } | null>(null);
+  const [price, setPrice] = useState("");
 
   const time = () => defaultTime?.() ?? Date.now();
 
@@ -28,11 +30,7 @@ export function DropForm({ onAdd, defaultTime }: { onAdd: (d: Drop) => void; def
     toast(`已记录 ${fmtCoin(v)} 梦幻币`);
   };
 
-  const addItem = () => {
-    const it = items.find((x) => x.id === itemId);
-    if (!it) return toast("请选择物品", "err");
-    const n = parseInt(qty, 10);
-    if (!Number.isFinite(n) || n <= 0) return toast("数量不正确", "err");
+  const recordItem = (it: Item, n: number, unitValue: number, itemNote?: string) => {
     onAdd({
       id: uid(),
       time: time(),
@@ -40,12 +38,43 @@ export function DropForm({ onAdd, defaultTime }: { onAdd: (d: Drop) => void; def
       itemId: it.id,
       itemName: it.name,
       qty: n,
-      unitValue: it.value,
-      note: note.trim() || undefined,
+      unitValue,
+      note: itemNote,
     });
     setQty("1");
     setNote("");
     toast(`已记录 ${it.name} ×${n}`);
+  };
+
+  const addItem = () => {
+    const it = items.find((x) => x.id === itemId && x.origin === "user");
+    if (!it) return toast("请选择物品", "err");
+    const n = parseInt(qty, 10);
+    if (!Number.isFinite(n) || n <= 0) return toast("数量不正确", "err");
+    const itemNote = note.trim() || undefined;
+    if (it.value === 0) {
+      setPrice("");
+      setPending({ item: it, qty: n, note: itemNote });
+      return;
+    }
+    recordItem(it, n, it.value, itemNote);
+  };
+
+  const savePriceAndRecord = () => {
+    if (!pending) return;
+    const value = fromWan(price);
+    if (value === null || value <= 0) return toast("请输入大于 0 的物品单价", "err");
+    const current = items.find((item) => item.id === pending.item.id && item.origin === "user");
+    if (!current) {
+      setPending(null);
+      return toast("物品不存在，请重新选择", "err");
+    }
+    update((d) => {
+      const item = d.items.find((entry) => entry.id === current.id);
+      if (item) item.value = value;
+    });
+    recordItem(current, pending.qty, value, pending.note);
+    setPending(null);
   };
 
   const selected = items.find((x) => x.id === itemId);
@@ -108,6 +137,19 @@ export function DropForm({ onAdd, defaultTime }: { onAdd: (d: Drop) => void; def
           </div>
           <input placeholder="备注（可选）" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
+      )}
+      {pending && (
+        <Modal title="填写物品价格" onClose={() => setPending(null)} width={400} footer={<>
+          <button className="btn" onClick={() => setPending(null)}>取消</button>
+          <button className="btn primary" onClick={savePriceAndRecord}>保存并记录</button>
+        </>}>
+          <p>「{pending.item.name}」还没有设置价格，请填写单价。</p>
+          <div className="field">
+            <label>物品单价</label>
+            <WanInput value={price} onChange={setPrice} placeholder="请输入单价" autoFocus onEnter={savePriceAndRecord} />
+          </div>
+          <p className="muted small">价格会保存到物品库，供下次记账使用。</p>
+        </Modal>
       )}
     </div>
   );

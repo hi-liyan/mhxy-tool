@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ITEM_CATEGORIES, type Item } from "../types";
+import type { Item } from "../types";
 import { useStore } from "../store";
 import { fmtCoin, fromWan, resizeImage, toWan, uid } from "../utils";
 import { Modal, WanInput, useUi } from "./ui";
@@ -36,10 +36,8 @@ export function ItemEditor({
   const [name, setName] = useState(item?.name ?? template?.name ?? initialName);
   const [value, setValue] = useState(item ? toWan(item.value) : "");
   const [image, setImage] = useState<string | undefined>(item?.image ?? template?.image);
-  const [category, setCategory] = useState(item?.category ?? template?.category ?? "其他");
   const [description, setDescription] = useState(item?.description ?? template?.description ?? "");
   const [saving, setSaving] = useState(false);
-  const categories = [...new Set([...ITEM_CATEGORIES, ...db.items.map((entry) => entry.category).filter((c): c is string => !!c)])];
 
   const pickImage = async (file?: Blob | null) => {
     if (!file || !file.type.startsWith("image/")) return;
@@ -58,7 +56,6 @@ export function ItemEditor({
     if (v === null) return toast("估值格式不正确", "err");
     if (db.items.some((x) => x.name === n && x.id !== item?.id)) return toast("已存在同名物品", "err");
 
-    if (!category.trim() || category.trim() === "全部") return toast("请输入有效的分类名称", "err");
     setSaving(true);
     let storedImage = image;
     try {
@@ -76,7 +73,7 @@ export function ItemEditor({
     if (!id) {
       do { id = `user:${uid()}`; } while (db.items.some((entry) => entry.id === id));
     }
-    const saved: Item = { id, name: n, value: v, image: storedImage, createdAt: item?.createdAt ?? Date.now(), category: category.trim(), description: description.trim() || undefined, templateId: item?.templateId ?? template?.id };
+    const saved: Item = { id, name: n, value: v, image: storedImage, createdAt: item?.createdAt ?? Date.now(), description: description.trim() || undefined, templateId: item?.templateId ?? template?.id };
     update((d) => {
       const i = d.items.findIndex((x) => x.id === saved.id);
       if (i >= 0) d.items[i] = saved;
@@ -139,11 +136,6 @@ export function ItemEditor({
             <label>名称</label>
             <input value={name} autoFocus onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && save()} />
           </div>
-          <div className="field">
-            <label>分类</label>
-            <input list="item-category-options" value={category} onChange={(e) => setCategory(e.target.value)} />
-            <datalist id="item-category-options">{categories.map((c) => <option key={c} value={c} />)}</datalist>
-          </div>
             <div className="field"><label>描述（可选）</label><input value={description} onChange={(e) => setDescription(e.target.value)} /></div>
           <div className="field">
             <label>大概价值</label>
@@ -169,11 +161,8 @@ export function ItemCreation({ initialName = "", onClose, onSaved }: {
 }) {
   const { items } = useStore();
   const [query, setQuery] = useState(initialName);
-  const [category, setCategory] = useState("全部");
   const [selected, setSelected] = useState<Item | "blank" | null>(null);
-  const templates = items.filter((item) => item.origin === "system" &&
-    (!query.trim() || item.name.includes(query.trim())) &&
-    (category === "全部" || item.category === category));
+  const templates = items.filter((item) => item.origin === "system" && (!query.trim() || item.name.includes(query.trim())));
 
   if (selected) return <ItemEditor template={selected === "blank" ? undefined : selected} initialName={initialName} onClose={onClose} onSaved={onSaved} />;
 
@@ -182,12 +171,9 @@ export function ItemCreation({ initialName = "", onClose, onSaved }: {
       <button className="btn" onClick={onClose}>取消</button>
       <button className="btn primary" onClick={() => setSelected("blank")}>从空白创建</button>
     </>}>
-      <p className="muted small template-hint">选择系统物品作为模板，创建后可修改名称、分类和图片。</p>
+      <p className="muted small template-hint">选择系统物品作为模板，创建后可修改名称和图片。</p>
       <div className="picker-filters">
         <input className="search" placeholder="搜索系统模板…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
-        <select aria-label="模板分类" value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="全部">全部分类</option>{ITEM_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
       </div>
       <div className="picker-grid template-grid">
         {templates.map((template) => <button key={template.id} className="picker-cell" title={template.name} onClick={() => setSelected(template)}>
@@ -203,7 +189,6 @@ export function ItemCreation({ initialName = "", onClose, onSaved }: {
 export function ItemPicker({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string) => void }) {
   const { db, items } = useStore();
   const [q, setQ] = useState("");
-  const [category, setCategory] = useState("全部");
   const [creating, setCreating] = useState<string | null>(null);
 
   // 常用的排前面：按历史掉落次数排序
@@ -216,21 +201,17 @@ export function ItemPicker({ selectedId, onSelect }: { selectedId: string | null
   const list = useMemo(() => {
     const kw = q.trim();
     return items
-      .filter((x) => x.origin === "user" && (!kw || x.name.includes(kw)) && (category === "全部" || (x.category ?? "其他") === category))
+      .filter((x) => x.origin === "user" && (!kw || x.name.includes(kw)))
       .sort((a, b) => (usage.get(b.id) ?? 0) - (usage.get(a.id) ?? 0) || a.name.localeCompare(b.name, "zh"));
-  }, [items, q, usage, category]);
+  }, [items, q, usage]);
 
   const kw = q.trim();
   const exact = items.some((x) => x.origin === "user" && x.name === kw);
-  const categories = [...new Set([...ITEM_CATEGORIES, ...db.items.map((item) => item.category).filter((c): c is string => !!c)])];
 
   return (
     <div className="picker">
       <div className="picker-filters">
         <input className="search" placeholder="搜索物品…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select aria-label="物品分类" value={category} onChange={(e) => setCategory(e.target.value)}>
-          <option value="全部">全部分类</option>{categories.map((c) => <option key={c} value={c}>{c}</option>)}
-        </select>
       </div>
       <div className="picker-grid">
         {list.map((it) => (
