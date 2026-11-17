@@ -21,5 +21,7 @@ pnpm tauri build    # 打包安装包，产物在 src-tauri/target/release/bundl
 
 ## 数据
 
+「导入常用物品」包含本地内置图标：原有图标来自藏宝阁；其他具名图片来自 [xyq-profit-ledger](https://github.com/shutiaolab/xyq-profit-ledger) 的 `img` 目录，来源版本为 `fed0b70b43bddbd3b12af956ec0d9b2807e9b635`。上游以文件名作为物品名称，无法识别名称的哈希文件未纳入。同名物品优先使用原有图标。上游仓库未附许可证，游戏图片的授权信息亦未注明。
+
 全部数据保存在本地单个 JSON 文件中（macOS 路径：`~/Library/Application Support/com.chenjinliang.mhxy-ledger/data.json`），
 写入采用"临时文件 + rename"的原子方式；「设置 → 立即备份」会复制到同目录的 `backups/` 下。

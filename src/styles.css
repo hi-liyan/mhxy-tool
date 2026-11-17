@@ -782,6 +782,19 @@ nav button.active {
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: 8px;
 }
+.items-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.items-page .page-head {
+  flex-shrink: 0;
+}
+.items-content {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 2px 8px;
+}
 .item-card {
   display: flex;
   flex-direction: column;
