@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { Item } from "../types";
+import { ITEM_CATEGORIES, type Item } from "../types";
 import { useStore } from "../store";
 import { fmtCoin, fromWan, resizeImage, toWan, uid } from "../utils";
 import { Modal, WanInput, useUi } from "./ui";
@@ -20,20 +20,26 @@ export function ItemIcon({ item, name, size = 44 }: { item?: Item; name?: string
 /** 新建 / 编辑物品 */
 export function ItemEditor({
   item,
+  template,
   initialName = "",
   onClose,
   onSaved,
 }: {
   item?: Item;
+  template?: Item;
   initialName?: string;
   onClose: () => void;
   onSaved?: (item: Item) => void;
 }) {
   const { db, update } = useStore();
   const { confirm, toast } = useUi();
-  const [name, setName] = useState(item?.name ?? initialName);
+  const [name, setName] = useState(item?.name ?? template?.name ?? initialName);
   const [value, setValue] = useState(item ? toWan(item.value) : "");
-  const [image, setImage] = useState<string | undefined>(item?.image);
+  const [image, setImage] = useState<string | undefined>(item?.image ?? template?.image);
+  const [category, setCategory] = useState(item?.category ?? template?.category ?? "其他");
+  const [description, setDescription] = useState(item?.description ?? template?.description ?? "");
+  const [saving, setSaving] = useState(false);
+  const categories = [...new Set([...ITEM_CATEGORIES, ...db.items.map((entry) => entry.category).filter((c): c is string => !!c)])];
 
   const pickImage = async (file?: Blob | null) => {
     if (!file || !file.type.startsWith("image/")) return;
@@ -44,14 +50,33 @@ export function ItemEditor({
     }
   };
 
-  const save = () => {
+  const save = async () => {
+    if (saving) return;
     const n = name.trim();
     if (!n) return toast("请填写物品名称", "err");
     const v = value.trim() === "" ? 0 : fromWan(value);
     if (v === null) return toast("估值格式不正确", "err");
     if (db.items.some((x) => x.name === n && x.id !== item?.id)) return toast("已存在同名物品", "err");
 
-    const saved: Item = item ? { ...item, name: n, value: v, image } : { id: uid(), name: n, value: v, image, createdAt: Date.now() };
+    if (!category.trim() || category.trim() === "全部") return toast("请输入有效的分类名称", "err");
+    setSaving(true);
+    let storedImage = image;
+    try {
+      if (storedImage && !storedImage.startsWith("data:")) {
+        const response = await fetch(storedImage);
+        if (!response.ok) throw new Error("无法读取模板图片");
+        storedImage = await resizeImage(await response.blob());
+      }
+    } catch (e) {
+      toast(`保存图片失败：${String(e)}`, "err");
+      setSaving(false);
+      return;
+    }
+    let id = item?.id;
+    if (!id) {
+      do { id = `user:${uid()}`; } while (db.items.some((entry) => entry.id === id));
+    }
+    const saved: Item = { id, name: n, value: v, image: storedImage, createdAt: item?.createdAt ?? Date.now(), category: category.trim(), description: description.trim() || undefined, templateId: item?.templateId ?? template?.id };
     update((d) => {
       const i = d.items.findIndex((x) => x.id === saved.id);
       if (i >= 0) d.items[i] = saved;
@@ -91,8 +116,8 @@ export function ItemEditor({
           <button className="btn" onClick={onClose}>
             取消
           </button>
-          <button className="btn primary" onClick={save}>
-            保存
+          <button className="btn primary" onClick={save} disabled={saving}>
+            {saving ? "保存中…" : "保存"}
           </button>
         </>
       }
@@ -115,6 +140,12 @@ export function ItemEditor({
             <input value={name} autoFocus onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && save()} />
           </div>
           <div className="field">
+            <label>分类</label>
+            <input list="item-category-options" value={category} onChange={(e) => setCategory(e.target.value)} />
+            <datalist id="item-category-options">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+          </div>
+            <div className="field"><label>描述（可选）</label><input value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+          <div className="field">
             <label>大概价值</label>
             <WanInput value={value} onChange={setValue} placeholder="0" onEnter={save} />
           </div>
@@ -130,10 +161,49 @@ export function ItemEditor({
   );
 }
 
+/** 选择系统模板或从空白创建；模板本身不会被修改。 */
+export function ItemCreation({ initialName = "", onClose, onSaved }: {
+  initialName?: string;
+  onClose: () => void;
+  onSaved?: (item: Item) => void;
+}) {
+  const { items } = useStore();
+  const [query, setQuery] = useState(initialName);
+  const [category, setCategory] = useState("全部");
+  const [selected, setSelected] = useState<Item | "blank" | null>(null);
+  const templates = items.filter((item) => item.origin === "system" &&
+    (!query.trim() || item.name.includes(query.trim())) &&
+    (category === "全部" || item.category === category));
+
+  if (selected) return <ItemEditor template={selected === "blank" ? undefined : selected} initialName={initialName} onClose={onClose} onSaved={onSaved} />;
+
+  return (
+    <Modal title="新建物品" onClose={onClose} width={680} footer={<>
+      <button className="btn" onClick={onClose}>取消</button>
+      <button className="btn primary" onClick={() => setSelected("blank")}>从空白创建</button>
+    </>}>
+      <p className="muted small template-hint">选择系统物品作为模板，创建后可修改名称、分类和图片。</p>
+      <div className="picker-filters">
+        <input className="search" placeholder="搜索系统模板…" value={query} onChange={(e) => setQuery(e.target.value)} autoFocus />
+        <select aria-label="模板分类" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <option value="全部">全部分类</option>{ITEM_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
+      <div className="picker-grid template-grid">
+        {templates.map((template) => <button key={template.id} className="picker-cell" title={template.name} onClick={() => setSelected(template)}>
+          <ItemIcon item={template} size={36} /><span className="name">{template.name}</span>
+        </button>)}
+      </div>
+      {templates.length === 0 && <p className="muted small">没有找到模板，可以从空白创建。</p>}
+    </Modal>
+  );
+}
+
 /** 可搜索的物品选择网格，支持就地新建 */
 export function ItemPicker({ selectedId, onSelect }: { selectedId: string | null; onSelect: (id: string) => void }) {
-  const { db } = useStore();
+  const { db, items } = useStore();
   const [q, setQ] = useState("");
+  const [category, setCategory] = useState("全部");
   const [creating, setCreating] = useState<string | null>(null);
 
   // 常用的排前面：按历史掉落次数排序
@@ -145,17 +215,23 @@ export function ItemPicker({ selectedId, onSelect }: { selectedId: string | null
 
   const list = useMemo(() => {
     const kw = q.trim();
-    return db.items
-      .filter((x) => !kw || x.name.includes(kw))
+    return items
+      .filter((x) => x.origin === "user" && (!kw || x.name.includes(kw)) && (category === "全部" || (x.category ?? "其他") === category))
       .sort((a, b) => (usage.get(b.id) ?? 0) - (usage.get(a.id) ?? 0) || a.name.localeCompare(b.name, "zh"));
-  }, [db.items, q, usage]);
+  }, [items, q, usage, category]);
 
   const kw = q.trim();
-  const exact = db.items.some((x) => x.name === kw);
+  const exact = items.some((x) => x.origin === "user" && x.name === kw);
+  const categories = [...new Set([...ITEM_CATEGORIES, ...db.items.map((item) => item.category).filter((c): c is string => !!c)])];
 
   return (
     <div className="picker">
-      <input className="search" placeholder="搜索物品…" value={q} onChange={(e) => setQ(e.target.value)} />
+      <div className="picker-filters">
+        <input className="search" placeholder="搜索物品…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <select aria-label="物品分类" value={category} onChange={(e) => setCategory(e.target.value)}>
+          <option value="全部">全部分类</option>{categories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+      </div>
       <div className="picker-grid">
         {list.map((it) => (
           <button key={it.id} className={`picker-cell ${selectedId === it.id ? "active" : ""}`} onClick={() => onSelect(it.id)} title={it.name}>
@@ -170,7 +246,7 @@ export function ItemPicker({ selectedId, onSelect }: { selectedId: string | null
         </button>
       </div>
       {creating !== null && (
-        <ItemEditor
+        <ItemCreation
           initialName={creating}
           onClose={() => setCreating(null)}
           onSaved={(it) => {

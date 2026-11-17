@@ -23,6 +23,7 @@ export function defaultDB(): DB {
       defaultSelected: true,
     })),
     items: [],
+    builtinValues: {},
     sessions: [],
   };
 }
@@ -35,6 +36,7 @@ function normalize(raw: Partial<DB>): DB {
     settings: normalizeSettings(raw.settings, base.settings),
     accounts: Array.isArray(raw.accounts) ? raw.accounts : base.accounts,
     items: Array.isArray(raw.items) ? raw.items : [],
+    builtinValues: raw.builtinValues && typeof raw.builtinValues === "object" ? raw.builtinValues : {},
     sessions: Array.isArray(raw.sessions)
       ? raw.sessions.map((s) => ({ ...s, drops: s.drops ?? [], note: s.note ?? "", pointsOverride: s.pointsOverride ?? null }))
       : [],

@@ -37,7 +37,7 @@ function rangeStart(k: RangeKey): number {
 }
 
 export default function HistoryPage() {
-  const { db } = useStore();
+  const { db, items } = useStore();
   const [range, setRange] = useState<RangeKey>("7d");
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -98,7 +98,7 @@ export default function HistoryPage() {
           <div className="agg">
             {itemAgg.map((a) => (
               <div key={a.itemId} className="agg-cell">
-                <ItemIcon item={db.items.find((x) => x.id === a.itemId)} name={a.name} size={32} />
+              <ItemIcon item={items.find((x) => x.id === a.itemId)} name={a.name} size={32} />
                 <div>
                   <div>
                     {a.name} <b>×{a.qty}</b>

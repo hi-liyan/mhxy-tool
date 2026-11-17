@@ -1,9 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import type { DB } from "./types";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { DB, Item } from "./types";
 import { loadDB, saveDB } from "./storage";
+import { BUILTIN_CATALOG } from "./itemCatalog";
+
+const icons = import.meta.glob("./assets/items/*.{png,jpg,gif}", { eager: true, query: "?url", import: "default" }) as Record<string, string>;
 
 interface StoreValue {
   db: DB;
+  items: Item[];
   /** 在 db 的深拷贝上修改，然后自动保存 */
   update: (fn: (draft: DB) => void) => void;
   saveError: string | null;
@@ -16,6 +20,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const dbRef = useRef<DB | null>(null);
+
+  const items = useMemo(() => db ? [
+    ...BUILTIN_CATALOG.map((item): Item => ({
+      id: item.id, name: item.name, category: item.category,
+      description: item.description ?? undefined, origin: "system",
+      value: db.builtinValues[item.id] ?? 0, image: item.iconPath ? icons[item.iconPath] : undefined, createdAt: 0,
+    })),
+    ...db.items.map((item): Item => ({ ...item, origin: "user" })),
+  ] : [], [db]);
 
   useEffect(() => {
     loadDB()
@@ -47,7 +60,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
   if (!db) return <div className="boot">加载中…</div>;
 
-  return <StoreCtx.Provider value={{ db, update, saveError }}>{children}</StoreCtx.Provider>;
+  return <StoreCtx.Provider value={{ db, items, update, saveError }}>{children}</StoreCtx.Provider>;
 }
 
 export function useStore(): StoreValue {

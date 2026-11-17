@@ -9,7 +9,7 @@ const QUICK_WAN = [10, 50, 100, 500];
 
 /** 录入一条收入：梦幻币 或 物品 */
 export function DropForm({ onAdd, defaultTime }: { onAdd: (d: Drop) => void; defaultTime?: () => number }) {
-  const { db } = useStore();
+  const { items } = useStore();
   const { toast } = useUi();
   const [tab, setTab] = useState<"coin" | "item">("coin");
   const [coin, setCoin] = useState("");
@@ -29,7 +29,7 @@ export function DropForm({ onAdd, defaultTime }: { onAdd: (d: Drop) => void; def
   };
 
   const addItem = () => {
-    const it = db.items.find((x) => x.id === itemId);
+    const it = items.find((x) => x.id === itemId);
     if (!it) return toast("请选择物品", "err");
     const n = parseInt(qty, 10);
     if (!Number.isFinite(n) || n <= 0) return toast("数量不正确", "err");
@@ -48,7 +48,7 @@ export function DropForm({ onAdd, defaultTime }: { onAdd: (d: Drop) => void; def
     toast(`已记录 ${it.name} ×${n}`);
   };
 
-  const selected = db.items.find((x) => x.id === itemId);
+  const selected = items.find((x) => x.id === itemId);
 
   return (
     <div className="drop-form">
@@ -115,13 +115,13 @@ export function DropForm({ onAdd, defaultTime }: { onAdd: (d: Drop) => void; def
 
 /** 收入明细列表 */
 export function DropList({ drops, onRemove }: { drops: Drop[]; onRemove?: (id: string) => void }) {
-  const { db } = useStore();
+  const { items } = useStore();
   if (drops.length === 0) return <div className="empty">还没有收入记录</div>;
   const sorted = [...drops].sort((a, b) => b.time - a.time);
   return (
     <ul className="drop-list">
       {sorted.map((d) => {
-        const item = d.kind === "item" ? db.items.find((x) => x.id === d.itemId) : undefined;
+        const item = d.kind === "item" ? items.find((x) => x.id === d.itemId) : undefined;
         return (
           <li key={d.id}>
             <span className="time">{fmtTime(d.time)}</span>

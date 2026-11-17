@@ -15,6 +15,28 @@ export interface Item {
   /** 图片 dataURL，可为空 */
   image?: string;
   createdAt: number;
+  category?: string;
+  description?: string;
+  origin?: "system" | "user";
+  /** 创建时使用的系统模板，仅供追溯，物品数据独立保存。 */
+  templateId?: string;
+}
+
+export const ITEM_CATEGORIES = ["兽诀", "宝石", "常用道具", "装备材料", "灵饰材料", "药品烹饪", "其他"] as const;
+export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
+
+/** 静态目录 ID 使用字符串，避免 JavaScript 数字精度问题并与用户 ID 隔离。 */
+export interface BuiltinItem {
+  id: string;
+  name: string;
+  category: ItemCategory;
+  iconPath: string | null;
+  resourceId: string | null;
+  description: string | null;
+  source: string;
+  /** 上游图片原文件名，用于追溯；未知时为 null。 */
+  sourceIcon: string | null;
+  verifiedAt: string | null;
 }
 
 export interface GoldRecord {
@@ -90,5 +112,6 @@ export interface DB {
   settings: Settings;
   accounts: Account[];
   items: Item[];
+  builtinValues: Record<string, number>;
   sessions: Session[];
 }

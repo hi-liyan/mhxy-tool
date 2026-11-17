@@ -335,7 +335,7 @@ function HourlyTrend({ buckets }: { buckets: ReturnType<typeof buildBuckets> }) 
 }
 
 function ItemRanking({ items, sessionCount }: { items: ReturnType<typeof itemStats>; sessionCount: number }) {
-  const { db } = useStore();
+  const { items: catalogItems } = useStore();
   const max = Math.max(1, ...items.map((i) => i.value));
   return (
     <section className="card">
@@ -347,7 +347,7 @@ function ItemRanking({ items, sessionCount }: { items: ReturnType<typeof itemSta
         <div className="rank">
           {items.map((it) => (
             <div key={it.itemId} className="rank-row">
-              <ItemIcon item={db.items.find((x) => x.id === it.itemId)} name={it.name} size={28} />
+              <ItemIcon item={catalogItems.find((x) => x.id === it.itemId)} name={it.name} size={28} />
               <div className="rank-main">
                 <div className="rank-name">
                   <span>{it.name}</span>
@@ -369,7 +369,7 @@ function ItemRanking({ items, sessionCount }: { items: ReturnType<typeof itemSta
 }
 
 function WindfallList({ events, total }: { events: ReturnType<typeof windfallEvents>; total: Breakdown }) {
-  const { db } = useStore();
+  const { items } = useStore();
   return (
     <section className="card">
       <h2>高价值掉落</h2>
@@ -380,7 +380,7 @@ function WindfallList({ events, total }: { events: ReturnType<typeof windfallEve
         <ul className="windfall-list">
           {events.map((e) => (
             <li key={e.drop.id}>
-              <ItemIcon item={db.items.find((x) => x.id === e.drop.itemId)} name={e.drop.itemName} size={32} />
+              <ItemIcon item={items.find((x) => x.id === e.drop.itemId)} name={e.drop.itemName} size={32} />
               <div className="wf-main">
                 <div>
                   <b>{e.drop.itemName}</b> ×{e.drop.qty}
