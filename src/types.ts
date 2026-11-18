@@ -62,6 +62,16 @@ export interface Settings {
   goldHistory: GoldRecord[];
   /** 偶然高价值判定阈值（单件估值，梦幻币），null 表示自动 */
   windfallThreshold: number | null;
+  /** 全局快捷键 */
+  hotkeys: Hotkeys;
+}
+
+/** 快捷键写法如 "Ctrl+Alt+J"，null 表示不启用 */
+export interface Hotkeys {
+  /** 呼出小窗快速记账 */
+  quickAdd: string | null;
+  /** 显示 / 隐藏置顶小窗 */
+  toggleMini: string | null;
 }
 
 interface DropBase {
@@ -87,12 +97,27 @@ export interface ItemDrop extends DropBase {
 
 export type Drop = CoinDrop | ItemDrop;
 
+export interface AccountSpan {
+  /** 上线时刻，null 表示随场次上线 */
+  from: number | null;
+  /** 下线时刻，null 表示随场次下线（进行中的场次即仍在线） */
+  to: number | null;
+}
+
+export interface SessionAccount {
+  id: string;
+  name: string;
+  /** 在线时间段；缺省表示整场在线（旧数据和全程在线的号） */
+  spans?: AccountSpan[];
+}
+
 export interface Session {
   id: string;
   startAt: number;
   /** null 表示正在刷 */
   endAt: number | null;
-  accounts: { id: string; name: string }[];
+  /** 本场参与过的号（不重复） */
+  accounts: SessionAccount[];
   /** 开刷时的配置快照 */
   pointsPerHour: number;
   coinPerPoint: number;

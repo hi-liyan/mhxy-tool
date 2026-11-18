@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 
 // ---------- Modal ----------
 
@@ -136,16 +136,19 @@ export function WanInput({
   placeholder,
   autoFocus,
   onEnter,
+  ref,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   autoFocus?: boolean;
   onEnter?: () => void;
+  ref?: Ref<HTMLInputElement>;
 }) {
   return (
     <div className="input-unit">
       <input
+        ref={ref}
         type="number"
         min={0}
         step="any"

@@ -55,10 +55,12 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Verify catalog and release automation
+      - name: Verify catalog, session billing and release automation
         run: |
           node tests/catalog.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'Catalog tests failed' }
+          node --experimental-strip-types --test tests/session-time.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Session time tests failed' }
           node --test tests/release.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'Release tests failed' }
 

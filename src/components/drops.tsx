@@ -5,7 +5,7 @@ import { dropValue, fmtCoin, fmtTime, fromWan, uid } from "../utils";
 import { ItemIcon, ItemPicker } from "./items";
 import { Modal, WanInput, useUi } from "./ui";
 
-const QUICK_WAN = [10, 50, 100, 500];
+export const QUICK_WAN = [10, 50, 100, 500];
 
 /** 录入一条收入：梦幻币 或 物品 */
 export function DropForm({ onAdd, defaultTime }: { onAdd: (d: Drop) => void; defaultTime?: () => number }) {

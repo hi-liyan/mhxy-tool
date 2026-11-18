@@ -1,9 +1,11 @@
 import { invoke, isTauri } from "@tauri-apps/api/core";
-import type { DB, Settings } from "./types";
+import type { DB, Hotkeys, Settings } from "./types";
 import { uid } from "./utils";
 
 const LS_KEY = "mhxy-ledger-data";
 const inTauri = isTauri();
+
+export const DEFAULT_HOTKEYS: Hotkeys = { quickAdd: "Ctrl+Alt+J", toggleMini: "Ctrl+Alt+M" };
 
 export function defaultDB(): DB {
   return {
@@ -16,6 +18,7 @@ export function defaultDB(): DB {
       cbgServer: null,
       goldHistory: [],
       windfallThreshold: null,
+      hotkeys: { ...DEFAULT_HOTKEYS },
     },
     accounts: Array.from({ length: 5 }, (_, i) => ({
       id: uid() + i,
@@ -45,6 +48,7 @@ function normalize(raw: Partial<DB>): DB {
 
 function normalizeSettings(raw: Partial<Settings> | undefined, base: Settings): Settings {
   const s = { ...base, ...(raw ?? {}) };
+  s.hotkeys = { ...base.hotkeys, ...(raw?.hotkeys ?? {}) };
   // 旧数据只有 coinPerPoint：反推金价
   if (raw && raw.goldPrice === undefined && raw.coinPerPoint !== undefined) {
     s.goldPrice = raw.coinPerPoint * s.pointsPerYuan;
@@ -116,8 +120,8 @@ export interface CbgStatus {
   message: string;
 }
 
-function requireTauri() {
-  if (!inTauri) throw new Error("藏宝阁功能需要在桌面应用中使用");
+function requireTauri(feature = "藏宝阁功能") {
+  if (!inTauri) throw new Error(`${feature}需要在桌面应用中使用`);
 }
 
 export interface GoldQuote {
@@ -140,3 +144,37 @@ export const cbg = {
   logout: async () => (requireTauri(), invoke<void>("cbg_logout")),
   goldPrice: async (serverId: number) => (requireTauri(), invoke<GoldQuote>("cbg_gold_price", { serverId })),
 };
+
+// ---------- 桌面端：置顶小窗、托盘、战报图片 ----------
+
+export const desktop = {
+  available: inTauri,
+  /** transient：由快捷键临时呼出，记完一笔自动隐藏 */
+  miniShow: async (transient = false) => (requireTauri("置顶小窗"), invoke<void>("mini_show", { transient })),
+  miniHide: async () => (requireTauri("置顶小窗"), invoke<void>("mini_hide")),
+  miniToggle: async () => (requireTauri("置顶小窗"), invoke<void>("mini_toggle")),
+  miniIsTransient: async () => (inTauri ? invoke<boolean>("mini_is_transient") : false),
+  mainShow: async () => (requireTauri("主窗口"), invoke<void>("main_show")),
+  trayUpdate: async (status: string, tooltip: string, active: boolean) =>
+    (requireTauri("托盘"), invoke<void>("tray_update", { status, tooltip, active })),
+};
+
+/** 保存战报图片：桌面端存到「图片/梦幻记账/」并返回路径；浏览器预览下载文件并返回 null */
+export async function saveReportImage(png: Blob, fileName: string): Promise<string | null> {
+  if (!inTauri) {
+    const url = URL.createObjectURL(png);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return null;
+  }
+  const bytes = new Uint8Array(await png.arrayBuffer());
+  return invoke<string>("save_report_image", bytes, { headers: { "x-file-name": fileName } });
+}
+
+export async function openReportDir(): Promise<void> {
+  if (!inTauri) throw new Error("浏览器预览模式不支持");
+  await invoke("open_report_dir");
+}

@@ -4,7 +4,7 @@ import { useStore } from "../store";
 import { fmtCoin, fromWan, resizeImage, toWan, uid } from "../utils";
 import { Modal, WanInput, useUi } from "./ui";
 
-export function ItemIcon({ item, name, size = 44 }: { item?: Item; name?: string; size?: number }) {
+export function ItemIcon({ item, name, size = 44 }: { item?: Pick<Item, "name" | "image">; name?: string; size?: number }) {
   const label = item?.name ?? name ?? "?";
   if (item?.image) {
     return <img className="item-icon" src={item.image} alt={label} style={{ width: size, height: size }} />;

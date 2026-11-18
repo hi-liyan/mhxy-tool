@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import type { Item } from "../types";
 import { useStore } from "../store";
 import { ItemCreation, ItemEditor, ItemIcon } from "../components/items";
-import { fmtCoin } from "../utils";
+import { fmtCoin, itemCounts } from "../utils";
 
 type SortKey = "name" | "value" | "count";
 
@@ -13,11 +13,7 @@ export default function ItemsPage() {
   const [editing, setEditing] = useState<Item | null>(null);
   const [creating, setCreating] = useState(false);
 
-  const counts = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const s of db.sessions) for (const d of s.drops) if (d.kind === "item") m.set(d.itemId, (m.get(d.itemId) ?? 0) + d.qty);
-    return m;
-  }, [db.sessions]);
+  const counts = useMemo(() => itemCounts(db.sessions), [db.sessions]);
   const userItems = items.filter((item) => item.origin === "user");
   const list = userItems.filter((item) => !q.trim() || item.name.includes(q.trim()));
   list.sort((a, b) => {

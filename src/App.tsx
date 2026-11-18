@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import logo from "./assets/mhxy-logo.png";
 import { TitleBar } from "./components/TitleBar";
 import { customTitlebar } from "./platform";
@@ -10,6 +10,8 @@ import HistoryPage from "./pages/HistoryPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import ItemsPage from "./pages/ItemsPage";
 import SettingsPage from "./pages/SettingsPage";
+import { useDesktop } from "./useDesktop";
+import { desktop } from "./storage";
 
 const PAGES = [
   { key: "session", label: "开刷" },
@@ -25,6 +27,14 @@ export default function App() {
   const { db, saveError } = useStore();
   const now = useNow(1000);
   const active = db.sessions.find((s) => s.endAt === null);
+  // 托盘或小窗请求下线结算：显示主窗口，切到开刷页并打开结算弹窗
+  const [offlineRequested, setOfflineRequested] = useState(false);
+  const requestOffline = useCallback(() => {
+    if (desktop.available) desktop.mainShow().catch(() => {});
+    setPage("session");
+    setOfflineRequested(true);
+  }, []);
+  const { hotkeyErrors } = useDesktop({ onOffline: requestOffline });
 
   const t0 = startOfToday();
   const today = sumStats(db.sessions.filter((s) => s.startAt >= t0).map((s) => sessionStats(s, now)));
@@ -61,11 +71,11 @@ export default function App() {
       <div className="main-col">
         {customTitlebar && <TitleBar />}
         <main className="main">
-          {page === "session" && <SessionPage />}
+          {page === "session" && <SessionPage offlineRequested={offlineRequested} onOfflineHandled={() => setOfflineRequested(false)} />}
           {page === "history" && <HistoryPage />}
           {page === "analysis" && <AnalysisPage />}
           {page === "items" && <ItemsPage />}
-          {page === "settings" && <SettingsPage />}
+          {page === "settings" && <SettingsPage hotkeyErrors={hotkeyErrors} />}
         </main>
       </div>
     </div>

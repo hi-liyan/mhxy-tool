@@ -1,4 +1,5 @@
 import type { Drop, Session } from "./types";
+import { accountHours, sessionDuration } from "./sessionTime";
 
 export function uid(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -63,6 +64,12 @@ export function fmtDateTime(ms: number): string {
   return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** 日期 11/18 */
+export function fmtDate(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
 export function fmtTime(ms: number): string {
   const d = new Date(ms);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -92,18 +99,22 @@ export function startOfToday(): number {
 
 // ---------- 场次计算 ----------
 
-export function sessionDuration(s: Session, now = Date.now()): number {
-  return Math.max(0, (s.endAt ?? now) - s.startAt);
-}
+export { sessionDuration } from "./sessionTime";
 
-/** 按时长自动计算的点卡消耗 */
+/** 按各号在线时长自动计算的点卡消耗 */
 export function autoPoints(s: Session, now = Date.now()): number {
-  const hours = sessionDuration(s, now) / 3_600_000;
-  return hours * s.accounts.length * s.pointsPerHour;
+  return accountHours(s, now) * s.pointsPerHour;
 }
 
 export function sessionPoints(s: Session, now = Date.now()): number {
   return s.pointsOverride ?? autoPoints(s, now);
+}
+
+/** 每个物品累计获得的数量 */
+export function itemCounts(sessions: Session[]): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const s of sessions) for (const d of s.drops) if (d.kind === "item") m.set(d.itemId, (m.get(d.itemId) ?? 0) + d.qty);
+  return m;
 }
 
 export function dropValue(d: Drop): number {

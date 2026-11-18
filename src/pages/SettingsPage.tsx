@@ -6,8 +6,10 @@ import { fmtCoin, fmtDateTime, fmtPoints, fromWan, stampNow, toWan, uid } from "
 import { CbgPanel } from "../components/CbgPanel";
 import { applyGold, useGoldRefresh } from "../components/gold";
 import type { GoldQuote } from "../storage";
+import { HotkeySettings } from "../components/hotkeys";
+import type { HotkeyErrors } from "../useDesktop";
 
-export default function SettingsPage() {
+export default function SettingsPage({ hotkeyErrors }: { hotkeyErrors: HotkeyErrors }) {
   const { db, update } = useStore();
   const { confirm, toast } = useUi();
   const [gold, setGold] = useState(toWan(db.settings.goldPrice));
@@ -141,6 +143,11 @@ export default function SettingsPage() {
       <section className="card">
         <h2>藏宝阁</h2>
         <CbgPanel />
+      </section>
+
+      <section className="card">
+        <h2>全局快捷键</h2>
+        <HotkeySettings errors={hotkeyErrors} />
       </section>
 
       <section className="card">
