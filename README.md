@@ -19,6 +19,25 @@ pnpm dev            # 仅浏览器预览，数据存 localStorage
 pnpm tauri build    # 打包安装包，产物在 src-tauri/target/release/bundle
 ```
 
+## 自动构建与发布
+
+推送到 `main` 后，GitHub Actions 会校验物品目录及发布脚本，执行 TypeScript 检查和前端构建，并只打包 **Windows x86-64** 的 EXE（NSIS）和 MSI 安装包。构建成功后自动提交版本文件、创建 `vX.Y.Z` 标签并发布到 GitHub Releases，同时提供 SHA256 校验文件及 Actions 构建产物。不构建 macOS、Linux、Windows ARM64 或 x86。
+
+版本规则：
+
+- 无历史版本标签时，首次自动发布当前版本 `v0.1.0`。
+- 后续按上次版本标签以来的全部提交判断：`feat:` / `feat(范围):` 升 minor，`fix:` 及其他提交升 patch。
+- 提交标题含 `!`（例如 `feat!: ...`），或正文含 `BREAKING CHANGE:` / `BREAKING-CHANGE:`，升 major；同时存在多种提交时取最大升级幅度。
+- 可在 **Actions → Windows build and release → Run workflow** 中选择 `main`，使用 `auto`，或手动选择 `patch` / `minor` / `major`。
+
+版本号由脚本同步写入 `package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml` 和 `src-tauri/Cargo.lock`；日常开发不必手动改版本。自动提交带 `[skip ci]`，不会再次触发发布。Release 说明按新增功能、问题修复、性能优化及其他变更组织，列出上次版本到本次之间的**全部提交标题与链接**，首次发布则包含全部历史提交，并提供版本比较链接。
+
+工作流使用仓库自带的 `GITHUB_TOKEN`，无需额外配置 PAT。仓库规则需允许 Actions 向 `main` 推送版本提交、创建 `v*` 标签及写入 Releases；如果分支或标签保护禁止此操作，需要管理员配置对应权限。版本与标签使用原子推送：构建期间若 `main` 有新提交，旧任务会安全失败，后续任务会基于最新分支重试。发布任务串行运行；GitHub concurrency 最多保留一个待运行任务，后续发布仍会包含期间全部提交。
+
+安装包全部上传后才将 Release 从草稿设为正式发布。如果推送标签后上传失败，重新运行工作流的 `auto` 模式会复用当前标签版本，补传产物并完成发布。`auto` 在分支没有新提交时也会复用当前版本；需要主动发布新版本时使用手动升级选项。安装包目前未配置代码签名。
+
+发布逻辑测试：`node --test tests/release.test.mjs`。
+
 ## 数据
 
 系统模板目录位于 `src/itemCatalog.ts`，包含稳定的系统 ID、名称、图标路径、资源编号、描述、来源与最近校验时间。未知资料为 null，不代表已经校验。系统 ID 一经发布不得变更或复用。使用模板创建物品时会复制信息和图片到用户数据，并分配独立 ID；之后编辑用户物品不会改变模板。记账记录保留当时的名称和单价。

@@ -1,0 +1,132 @@
+name: Windows build and release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 版本升级幅度（auto 根据提交信息判断）
+        type: choice
+        default: auto
+        options: [auto, patch, minor, major]
+
+permissions:
+  contents: read
+
+# Serialize releases so two runs cannot allocate the same version concurrently.
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Pick up version commits from earlier queued releases as well.
+          ref: main
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify catalog and release automation
+        run: |
+          node tests/catalog.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Catalog tests failed' }
+          node --test tests/release.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Release tests failed' }
+
+      - name: Prepare version and complete release notes
+        id: version
+        env:
+          RELEASE_BUMP: ${{ inputs.bump || 'auto' }}
+        run: node scripts/release.mjs $env:RELEASE_BUMP
+
+      - name: Build Windows x86-64 installers
+        # Tauri's beforeBuildCommand includes TypeScript checking and Vite build.
+        run: pnpm tauri build --target x86_64-pc-windows-msvc --bundles 'nsis,msi' -- --locked
+
+      - name: Collect installers
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .release/assets | Out-Null
+          $bundleRoot = 'src-tauri/target/x86_64-pc-windows-msvc/release/bundle'
+          $exe = @(Get-ChildItem "$bundleRoot/nsis/*.exe")
+          $msi = @(Get-ChildItem "$bundleRoot/msi/*.msi")
+          if ($exe.Count -ne 1 -or $msi.Count -ne 1) { throw 'Expected one EXE and one MSI installer' }
+          Copy-Item $exe[0].FullName '.release/assets/mhxy-ledger_${{ steps.version.outputs.version }}_windows_x86_64-setup.exe'
+          Copy-Item $msi[0].FullName '.release/assets/mhxy-ledger_${{ steps.version.outputs.version }}_windows_x86_64.msi'
+          Get-ChildItem .release/assets | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          } | Set-Content -Encoding utf8 .release/SHA256SUMS.txt
+          Move-Item .release/SHA256SUMS.txt .release/assets/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64-${{ steps.version.outputs.version }}
+          path: .release/assets/*
+          if-no-files-found: error
+
+      - name: Commit versions and push release tag
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot stage version changes' }
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 1) {
+            git commit -m "chore(release): $env:RELEASE_TAG [skip ci]"
+            if ($LASTEXITCODE -ne 0) { throw 'Version commit failed' }
+          } elseif ($LASTEXITCODE -ne 0) { throw 'Cannot inspect version changes' }
+          git show-ref --verify --quiet "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) {
+            git tag -a $env:RELEASE_TAG -m $env:RELEASE_TAG
+            if ($LASTEXITCODE -ne 0) { throw 'Tag creation failed' }
+          }
+          # Reject concurrent branch edits without leaving a stray remote tag.
+          git push --atomic origin HEAD:refs/heads/main "refs/tags/$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { throw 'Push failed; rerun against the latest main' }
+
+      - name: Publish GitHub Release
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release view $env:RELEASE_TAG --json isDraft
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --verify-tag --draft --title "梦幻记账 $env:RELEASE_TAG" --notes-file .release/notes.md
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed' }
+          }
+          $assets = @(Get-ChildItem .release/assets/* -File | ForEach-Object { $_.FullName })
+          gh release upload $env:RELEASE_TAG @assets --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Asset upload failed; rerun this workflow to retry' }
+          gh release edit $env:RELEASE_TAG --draft=false --latest --notes-file .release/notes.md
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed' }

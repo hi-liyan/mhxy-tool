@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test:catalog": "node tests/catalog.test.mjs",
+    "test:release": "node --test tests/release.test.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },
