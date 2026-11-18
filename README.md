@@ -27,5 +27,12 @@ pnpm tauri build    # 打包安装包，产物在 src-tauri/target/release/bundl
 
 内置图标部分来自藏宝阁；其他具名图片来自 [xyq-profit-ledger](https://github.com/shutiaolab/xyq-profit-ledger) 的 `img` 目录，来源版本为 `fed0b70b43bddbd3b12af956ec0d9b2807e9b635`。上游以文件名作为物品名称，无法识别名称的哈希文件未纳入。同名物品优先使用原有图标。上游仓库未附许可证，游戏图片的授权信息亦未注明。
 
-全部数据保存在本地单个 JSON 文件中（macOS 路径：`~/Library/Application Support/com.chenjinliang.mhxy-ledger/data.json`），
-写入采用"临时文件 + rename"的原子方式；「设置 → 立即备份」会复制到同目录的 `backups/` 下。
+记账数据保存在本地单个 JSON 文件 `data.json` 中。新用户默认使用以下数据目录：
+
+- Windows：`%APPDATA%/com.iyucode.mhxy-tools/`
+- macOS：`~/Library/Application Support/com.iyucode.mhxy-tools/`
+- Linux：`$XDG_DATA_HOME/com.iyucode.mhxy-tools/`（未设置时为 `~/.local/share/com.iyucode.mhxy-tools/`）
+
+如果同一位置已存在旧目录 `com.chenjinliang.mhxy-ledger`，则优先继续使用旧目录，即使旧目录为空或新旧目录同时存在，也不会自动迁移或合并数据。设置页显示实际使用的目录；记账数据、备份及藏宝阁会话均使用该目录。
+
+写入采用"临时文件 + rename"的原子方式；「设置 → 立即备份」会复制到实际数据目录的 `backups/` 下。

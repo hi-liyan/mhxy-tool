@@ -1,15 +1,21 @@
 use std::fs;
 use std::path::PathBuf;
+#[cfg(desktop)]
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    WindowEvent,
+};
 use tauri::{AppHandle, Manager};
 
 mod cbg;
+mod data_path;
 
 const DATA_FILE: &str = "data.json";
 
 pub(crate) fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    fs::create_dir_all(&dir).map_err(|e| format!("创建数据目录失败: {e}"))?;
-    Ok(dir)
+    let base = app.path().data_dir().map_err(|e| e.to_string())?;
+    data_path::resolve_data_dir(&base).map_err(|e| format!("访问数据目录失败: {e}"))
 }
 
 /// 读取数据文件，不存在时返回 None
@@ -77,9 +83,61 @@ fn open_data_dir(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(desktop)]
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            #[cfg(desktop)]
+            {
+                let show = MenuItem::with_id(app, "show", "打开主窗口", true, None::<&str>)?;
+                let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show, &quit])?;
+                let mut tray = TrayIconBuilder::new()
+                    .menu(&menu)
+                    .tooltip("梦幻记账")
+                    .show_menu_on_left_click(false)
+                    .on_menu_event(|app, event| match event.id().as_ref() {
+                        "show" => show_main_window(app),
+                        "quit" => app.exit(0),
+                        _ => {}
+                    })
+                    .on_tray_icon_event(|tray, event| {
+                        if let TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } = event
+                        {
+                            show_main_window(tray.app_handle());
+                        }
+                    });
+                if let Some(icon) = app.default_window_icon() {
+                    tray = tray.icon(icon.clone());
+                }
+                tray.build(app)?;
+            }
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            #[cfg(desktop)]
+            if window.label() == "main" {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+            #[cfg(not(desktop))]
+            let _ = (window, event);
+        })
         .invoke_handler(tauri::generate_handler![
             load_data,
             save_data,
