@@ -1,6 +1,6 @@
 [package]
 name = "mhxy-ledger"
-version = "0.1.1"
+version = "0.2.0"
 description = "梦幻西游刷本记账"
 edition = "2021"
 
