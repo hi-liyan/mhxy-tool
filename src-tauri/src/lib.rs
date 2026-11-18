@@ -1,17 +1,14 @@
 use std::fs;
-use std::path::PathBuf;
-#[cfg(desktop)]
-use tauri::{
-    menu::{Menu, MenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    WindowEvent,
-};
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
 mod cbg;
 mod data_path;
+#[cfg(desktop)]
+mod desktop;
 
 const DATA_FILE: &str = "data.json";
+const REPORT_DIR: &str = "梦幻记账";
 
 pub(crate) fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let base = app.path().data_dir().map_err(|e| e.to_string())?;
@@ -66,10 +63,8 @@ fn get_data_dir(app: AppHandle) -> Result<String, String> {
     Ok(data_dir(&app)?.display().to_string())
 }
 
-/// 在系统文件管理器中打开数据目录
-#[tauri::command]
-fn open_data_dir(app: AppHandle) -> Result<(), String> {
-    let dir = data_dir(&app)?;
+/// 在系统文件管理器中打开目录
+fn open_in_file_manager(dir: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     let program = "open";
     #[cfg(target_os = "windows")]
@@ -77,66 +72,88 @@ fn open_data_dir(app: AppHandle) -> Result<(), String> {
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
     let program = "xdg-open";
     std::process::Command::new(program)
-        .arg(&dir)
+        .arg(dir)
         .spawn()
         .map_err(|e| format!("打开目录失败: {e}"))?;
     Ok(())
 }
 
-#[cfg(desktop)]
-fn show_main_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
+#[tauri::command]
+fn open_data_dir(app: AppHandle) -> Result<(), String> {
+    open_in_file_manager(&data_dir(&app)?)
+}
+
+/// 战报图片保存目录：系统「图片」文件夹下的 梦幻记账/
+fn report_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let pictures = app
+        .path()
+        .picture_dir()
+        .map_err(|e| format!("找不到图片文件夹: {e}"))?;
+    Ok(pictures.join(REPORT_DIR))
+}
+
+fn valid_report_name(name: &str) -> bool {
+    name.len() <= 64
+        && name.ends_with(".png")
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+        && !name.contains("..")
+}
+
+/// 保存战报 PNG。请求体是原始图片字节，文件名放在 x-file-name 请求头中。
+#[tauri::command]
+fn save_report_image(app: AppHandle, request: tauri::ipc::Request<'_>) -> Result<String, String> {
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("图片数据格式不正确".into());
+    };
+    if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Err("图片数据不是 PNG".into());
     }
+    let name = request
+        .headers()
+        .get("x-file-name")
+        .and_then(|v| v.to_str().ok())
+        .filter(|n| valid_report_name(n))
+        .ok_or("非法的文件名")?;
+    let dir = report_dir(&app)?;
+    fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败: {e}"))?;
+    let path = dir.join(name);
+    fs::write(&path, bytes).map_err(|e| format!("保存图片失败: {e}"))?;
+    Ok(path.display().to_string())
+}
+
+#[tauri::command]
+fn open_report_dir(app: AppHandle) -> Result<(), String> {
+    let dir = report_dir(&app)?;
+    fs::create_dir_all(&dir).map_err(|e| format!("创建目录失败: {e}"))?;
+    open_in_file_manager(&dir)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(
+            // 只记住置顶小窗的位置，主窗口保持原有行为
+            tauri_plugin_window_state::Builder::new()
+                .with_state_flags(tauri_plugin_window_state::StateFlags::POSITION)
+                .with_denylist(&[desktop::MAIN])
+                .build(),
+        )
         .setup(|app| {
-            #[cfg(desktop)]
-            {
-                let show = MenuItem::with_id(app, "show", "打开主窗口", true, None::<&str>)?;
-                let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
-                let menu = Menu::with_items(app, &[&show, &quit])?;
-                let mut tray = TrayIconBuilder::new()
-                    .menu(&menu)
-                    .tooltip("梦幻记账")
-                    .show_menu_on_left_click(false)
-                    .on_menu_event(|app, event| match event.id().as_ref() {
-                        "show" => show_main_window(app),
-                        "quit" => app.exit(0),
-                        _ => {}
-                    })
-                    .on_tray_icon_event(|tray, event| {
-                        if let TrayIconEvent::Click {
-                            button: MouseButton::Left,
-                            button_state: MouseButtonState::Up,
-                            ..
-                        } = event
-                        {
-                            show_main_window(tray.app_handle());
-                        }
-                    });
-                if let Some(icon) = app.default_window_icon() {
-                    tray = tray.icon(icon.clone());
-                }
-                tray.build(app)?;
-            }
+            desktop::setup(app)?;
             Ok(())
         })
         .on_window_event(|window, event| {
-            #[cfg(desktop)]
-            if window.label() == "main" {
-                if let WindowEvent::CloseRequested { api, .. } = event {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if desktop::on_close_requested(window) {
                     api.prevent_close();
-                    let _ = window.hide();
                 }
             }
-            #[cfg(not(desktop))]
-            let _ = (window, event);
         })
         .invoke_handler(tauri::generate_handler![
             load_data,
@@ -144,13 +161,40 @@ pub fn run() {
             backup_data,
             get_data_dir,
             open_data_dir,
+            save_report_image,
+            open_report_dir,
             cbg::cbg_servers,
             cbg::cbg_status,
             cbg::cbg_open_login,
             cbg::cbg_capture,
             cbg::cbg_logout,
-            cbg::cbg_gold_price
-        ])
+            cbg::cbg_gold_price,
+            desktop::tray_update,
+            desktop::mini_show,
+            desktop::mini_hide,
+            desktop::mini_toggle,
+            desktop::mini_is_transient,
+            desktop::main_show
+        ]);
+
+    #[cfg(not(desktop))]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        load_data,
+        save_data,
+        backup_data,
+        get_data_dir,
+        open_data_dir,
+        save_report_image,
+        open_report_dir,
+        cbg::cbg_servers,
+        cbg::cbg_status,
+        cbg::cbg_open_login,
+        cbg::cbg_capture,
+        cbg::cbg_logout,
+        cbg::cbg_gold_price
+    ]);
+
+    builder
         .run(tauri::generate_context!())
         .expect("启动应用失败");
 }

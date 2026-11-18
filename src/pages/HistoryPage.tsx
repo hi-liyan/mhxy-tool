@@ -4,9 +4,12 @@ import { useStore } from "../store";
 import { DropForm, DropList } from "../components/drops";
 import { ItemIcon } from "../components/items";
 import { Stat, profitTone, useUi } from "../components/ui";
+import { ReportModal } from "../components/ReportModal";
+import { accountEvents } from "../sessionTime";
 import {
   autoPoints,
   fmtCoin,
+  fmtDate,
   fmtDateTime,
   fmtDuration,
   fmtPoints,
@@ -21,11 +24,24 @@ import {
 } from "../utils";
 
 const RANGES = [
-  { key: "today", label: "今天" },
-  { key: "7d", label: "近 7 天" },
-  { key: "30d", label: "近 30 天" },
-  { key: "all", label: "全部" },
+  { key: "today", label: "今天", report: "今日战报" },
+  { key: "7d", label: "近 7 天", report: "近 7 天战报" },
+  { key: "30d", label: "近 30 天", report: "近 30 天战报" },
+  { key: "all", label: "全部", report: "累计战报" },
 ] as const;
+
+/** 战报副标题：日期范围与场次数 */
+function rangeText(list: Session[]): string {
+  const from = Math.min(...list.map((s) => s.startAt));
+  const to = Math.max(...list.map((s) => s.endAt!));
+  const days = fmtDate(from) === fmtDate(to) ? fmtDate(from) : `${fmtDate(from)} – ${fmtDate(to)}`;
+  return `${days} · 共 ${list.length} 场`;
+}
+
+function sessionRangeText(s: Session): string {
+  const sameDay = fmtDate(s.startAt) === fmtDate(s.endAt!);
+  return `${fmtDateTime(s.startAt)} – ${sameDay ? fmtTime(s.endAt!) : fmtDateTime(s.endAt!)}`;
+}
 type RangeKey = (typeof RANGES)[number]["key"];
 
 function rangeStart(k: RangeKey): number {
@@ -40,6 +56,7 @@ export default function HistoryPage() {
   const { db, items } = useStore();
   const [range, setRange] = useState<RangeKey>("7d");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [reporting, setReporting] = useState(false);
 
   const list = useMemo(() => {
     const from = rangeStart(range);
@@ -68,14 +85,27 @@ export default function HistoryPage() {
     <div className="page">
       <div className="page-head">
         <h1>历史记录</h1>
-        <div className="seg">
-          {RANGES.map((r) => (
-            <button key={r.key} className={range === r.key ? "active" : ""} onClick={() => setRange(r.key)}>
-              {r.label}
-            </button>
-          ))}
+        <div className="actions">
+          <div className="seg">
+            {RANGES.map((r) => (
+              <button key={r.key} className={range === r.key ? "active" : ""} onClick={() => setRange(r.key)}>
+                {r.label}
+              </button>
+            ))}
+          </div>
+          <button className="btn" onClick={() => setReporting(true)} disabled={list.length === 0}>
+            生成战报
+          </button>
         </div>
       </div>
+      {reporting && (
+        <ReportModal
+          title={RANGES.find((r) => r.key === range)!.report}
+          rangeText={rangeText(list)}
+          sessions={list}
+          onClose={() => setReporting(false)}
+        />
+      )}
 
       <section className="card">
         <div className="stats">
@@ -151,6 +181,11 @@ function SessionRow({ session, open, onToggle }: { session: Session; open: boole
 function SessionDetail({ session }: { session: Session }) {
   const { update } = useStore();
   const { confirm, toast } = useUi();
+  const [reporting, setReporting] = useState(false);
+  const sessions = useMemo(() => [session], [session]);
+  const timeline = session.accounts
+    .map((a) => ({ name: a.name, events: accountEvents(session, a) }))
+    .filter((t) => t.events.length > 0);
 
   const patch = (fn: (s: Session) => void) =>
     update((d) => {
@@ -214,6 +249,16 @@ function SessionDetail({ session }: { session: Session }) {
       <div className="muted small">
         账号：{session.accounts.map((a) => a.name).join("、")} · 计费 {fmtPoints(session.pointsPerHour)} 点/号/小时 · 1 点 = {fmtCoin(session.coinPerPoint)}
       </div>
+      {timeline.length > 0 && (
+        <div className="muted small account-timeline">
+          中途上下线：
+          {timeline.map((t) => (
+            <span key={t.name}>
+              {t.name} {t.events.map((e) => `${fmtTime(e.at)} ${e.online ? "上线" : "下线"}`).join(" · ")}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="two-col">
         <div>
@@ -225,11 +270,17 @@ function SessionDetail({ session }: { session: Session }) {
           <DropList drops={session.drops} onRemove={(id) => patch((s) => void (s.drops = s.drops.filter((x) => x.id !== id)))} />
         </div>
       </div>
-      <div className="right">
+      <div className="right actions">
+        <button className="btn" onClick={() => setReporting(true)}>
+          生成这一场战报
+        </button>
         <button className="btn danger ghost" onClick={remove}>
           删除这一场
         </button>
       </div>
+      {reporting && (
+        <ReportModal title="本场战报" rangeText={sessionRangeText(session)} sessions={sessions} single onClose={() => setReporting(false)} />
+      )}
     </div>
   );
 }

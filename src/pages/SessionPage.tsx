@@ -1,9 +1,12 @@
-import { useMemo, useState } from "react";
-import type { Session } from "../types";
+import { useEffect, useMemo, useState } from "react";
+import type { Session, SessionAccount } from "../types";
 import { useNow, useStore } from "../store";
 import { DropForm, DropList } from "../components/drops";
 import { Modal, Stat, profitTone, useUi } from "../components/ui";
 import { useGoldRefresh } from "../components/gold";
+import { desktop } from "../storage";
+import { setAccountOnline, startSession } from "../sessionActions";
+import { accountHours, isAccountOnline, lastLeaveAt, onlineAccounts } from "../sessionTime";
 import {
   autoPoints,
   fmtClock,
@@ -11,19 +14,25 @@ import {
   fmtDateTime,
   fmtDuration,
   fmtPoints,
+  fmtTime,
   fromLocalInput,
   resolveEnd,
   sessionStats,
   startOfToday,
   sumStats,
   toLocalInput,
-  uid,
 } from "../utils";
 
-export default function SessionPage() {
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+export default function SessionPage({ offlineRequested, onOfflineHandled }: { offlineRequested: boolean; onOfflineHandled: () => void }) {
   const { db } = useStore();
   const active = db.sessions.find((s) => s.endAt === null);
-  return active ? <ActiveSession session={active} /> : <StartPanel />;
+  // 没有进行中的场次时无需结算
+  useEffect(() => {
+    if (offlineRequested && !active) onOfflineHandled();
+  }, [offlineRequested, active, onOfflineHandled]);
+  return active ? <ActiveSession session={active} offlineRequested={offlineRequested} onOfflineHandled={onOfflineHandled} /> : <StartPanel />;
 }
 
 function StartPanel() {
@@ -40,23 +49,12 @@ function StartPanel() {
     });
 
   const start = () => {
-    const accounts = db.accounts.filter((a) => selected.has(a.id)).map((a) => ({ id: a.id, name: a.name }));
-    if (accounts.length === 0) return toast("至少选择一个号", "err");
-    const s: Session = {
-      id: uid(),
-      startAt: Date.now(),
-      endAt: null,
-      accounts,
-      pointsPerHour: db.settings.pointsPerHour,
-      coinPerPoint: db.settings.coinPerPoint,
-      pointsOverride: null,
-      drops: [],
-      note: "",
-    };
-    update((d) => {
-      d.sessions.push(s);
-    });
-    toast("开刷！祝你出神兜");
+    try {
+      update((d) => void startSession(d, [...selected]));
+      toast("开刷！祝你出神兜");
+    } catch (e) {
+      toast(errText(e), "err");
+    }
   };
 
   const gold$ = useGoldRefresh();
@@ -172,12 +170,20 @@ function StartPanel() {
   );
 }
 
-function ActiveSession({ session }: { session: Session }) {
+function ActiveSession({ session, offlineRequested, onOfflineHandled }: { session: Session; offlineRequested: boolean; onOfflineHandled: () => void }) {
   const { update } = useStore();
   const { confirm, toast } = useUi();
   const now = useNow(1000);
   const [offline, setOffline] = useState(false);
   const st = sessionStats(session, now);
+  const online = onlineAccounts(session).length;
+
+  // 托盘或小窗发起的下线结算
+  useEffect(() => {
+    if (!offlineRequested) return;
+    setOffline(true);
+    onOfflineHandled();
+  }, [offlineRequested, onOfflineHandled]);
 
   const cancel = async () => {
     const ok = await confirm({
@@ -200,6 +206,11 @@ function ActiveSession({ session }: { session: Session }) {
           <span className="live-dot" /> 正在刷
         </h1>
         <div className="actions">
+          {desktop.available && (
+            <button className="btn" onClick={() => desktop.miniShow().catch((e) => toast(errText(e), "err"))}>
+              置顶小窗
+            </button>
+          )}
           <button className="btn ghost" onClick={cancel}>
             取消本次
           </button>
@@ -212,7 +223,7 @@ function ActiveSession({ session }: { session: Session }) {
       <section className="card hero">
         <div className="clock">{fmtClock(st.duration)}</div>
         <div className="muted">
-          {fmtDateTime(session.startAt)} 上线 · {session.accounts.map((a) => a.name).join("、")}
+          {fmtDateTime(session.startAt)} 上线 · {online}/{session.accounts.length} 号在线
         </div>
         <div className="stats">
           <Stat label="点卡消耗" value={`${fmtPoints(st.points)} 点`} sub={`≈ ${fmtCoin(st.cost)} 梦幻币`} tone="loss" />
@@ -221,9 +232,11 @@ function ActiveSession({ session }: { session: Session }) {
           <Stat label="净收益" value={fmtCoin(st.profit)} tone={profitTone(st.profit)} />
         </div>
         <div className="muted small">
-          计费：{session.accounts.length} 个号 × {fmtPoints(session.pointsPerHour)} 点/小时，1 点 = {fmtCoin(session.coinPerPoint)} 梦幻币
+          计费：累计 {fmtPoints(accountHours(session, now))} 号·小时 × {fmtPoints(session.pointsPerHour)} 点，1 点 = {fmtCoin(session.coinPerPoint)} 梦幻币
         </div>
       </section>
+
+      <SessionAccounts session={session} />
 
       <div className="two-col">
         <section className="card">
@@ -255,17 +268,92 @@ function ActiveSession({ session }: { session: Session }) {
   );
 }
 
+/** 场次中途让号下线、再上线或加号 */
+function SessionAccounts({ session }: { session: Session }) {
+  const { db, update } = useStore();
+  const { toast } = useUi();
+  const [adding, setAdding] = useState(false);
+  const others = db.accounts.filter((a) => !session.accounts.some((x) => x.id === a.id));
+
+  const toggle = (a: SessionAccount) => {
+    const online = !isAccountOnline(a);
+    try {
+      update((d) => setAccountOnline(d, session.id, a.id, online));
+      toast(`${a.name} 已${online ? "上线" : "下线"}`);
+    } catch (e) {
+      toast(errText(e), "err");
+    }
+  };
+
+  const add = (id: string, name: string) => {
+    try {
+      update((d) => setAccountOnline(d, session.id, id, true));
+      toast(`${name} 已加入本场`);
+      if (others.length <= 1) setAdding(false);
+    } catch (e) {
+      toast(errText(e), "err");
+    }
+  };
+
+  /** 中途上线或下线的时间 */
+  const changedAt = (a: SessionAccount) => {
+    const last = a.spans?.[a.spans.length - 1];
+    if (!last) return null;
+    if (last.to !== null) return `${fmtTime(last.to)} 下线`;
+    return last.from !== null && last.from > session.startAt ? `${fmtTime(last.from)} 上线` : null;
+  };
+
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>上线的号</h2>
+        {others.length > 0 && (
+          <button className="link" onClick={() => setAdding((v) => !v)}>
+            {adding ? "收起" : "＋ 中途加号"}
+          </button>
+        )}
+      </div>
+      <div className="accounts">
+        {session.accounts.map((a) => {
+          const on = isAccountOnline(a);
+          const at = changedAt(a);
+          return (
+            <button key={a.id} className={`account ${on ? "on" : ""}`} onClick={() => toggle(a)} title={on ? "点击让这个号下线" : "点击让这个号重新上线"}>
+              <span className="check">{on ? "✓" : ""}</span>
+              {a.name}
+              {at && <span className="account-at">{at}</span>}
+            </button>
+          );
+        })}
+      </div>
+      {adding && (
+        <div className="accounts add-accounts">
+          {others.map((a) => (
+            <button key={a.id} className="account" onClick={() => add(a.id, a.name)}>
+              <span className="check">＋</span>
+              {a.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="muted small">点击切换上线 / 下线，点卡按每个号各自的在线时间计算；所有号都下线的时段不计入在线时长。</p>
+    </section>
+  );
+}
+
 function OfflineModal({ session, onClose }: { session: Session; onClose: () => void }) {
   const { update } = useStore();
   const { toast } = useUi();
   const now = useNow(1000);
-  // null 表示没改过：下线时间实时跟随当前时间，确认时取精确时刻
+  // 所有号都已下线时，默认下线时间取最后一个号下线的时刻
+  const lastLeave = lastLeaveAt(session);
+  // null 表示没改过：下线时间默认跟随当前时间（或最后一个号下线的时刻），确认时取精确时刻
   const [endInput, setEndInput] = useState<string | null>(null);
   const [pointsInput, setPointsInput] = useState("");
   const [note, setNote] = useState(session.note);
 
   const edited = endInput === null ? null : fromLocalInput(endInput);
-  const endAt = endInput === null ? now : edited === null ? null : resolveEnd(session.startAt, edited);
+  const endAt = endInput === null ? (lastLeave ?? now) : edited === null ? null : resolveEnd(session.startAt, edited);
   const endError = endAt === null ? "下线时间不能早于上线时间" : endAt > Date.now() + 60_000 ? "下线时间不能晚于现在" : null;
   const draft: Session = { ...session, endAt: endError ? now : endAt };
   const computed = autoPoints(draft);
@@ -275,7 +363,7 @@ function OfflineModal({ session, onClose }: { session: Session; onClose: () => v
 
   const confirmOffline = () => {
     if (endError) return toast(endError, "err");
-    const finalEnd = endInput === null ? Date.now() : endAt!;
+    const finalEnd = endInput === null ? (lastLeave ?? Date.now()) : endAt!;
     update((d) => {
       const s = d.sessions.find((x) => x.id === session.id);
       if (!s) return;
@@ -307,14 +395,14 @@ function OfflineModal({ session, onClose }: { session: Session; onClose: () => v
         <div className="grid-2">
           <div className="field">
             <label>
-              下线时间（默认现在，忘记点下线可以改）
+              下线时间（默认{lastLeave === null ? "现在" : "最后一个号下线的时间"}，忘记点下线可以改）
               {endInput !== null && (
                 <button className="link" style={{ marginLeft: 6 }} onClick={() => setEndInput(null)}>
-                  恢复为现在
+                  恢复默认
                 </button>
               )}
             </label>
-            <input type="datetime-local" value={endInput ?? toLocalInput(now)} onChange={(e) => setEndInput(e.target.value)} />
+            <input type="datetime-local" value={endInput ?? toLocalInput(lastLeave ?? now)} onChange={(e) => setEndInput(e.target.value)} />
             {endError && <span className="loss small">{endError}</span>}
           </div>
           <div className="field">
@@ -328,8 +416,8 @@ function OfflineModal({ session, onClose }: { session: Session; onClose: () => v
             <b>{fmtDuration(st.duration)}</b>
           </div>
           <div>
-            <span>号数</span>
-            <b>{session.accounts.length}</b>
+            <span>号·小时（{session.accounts.length} 个号）</span>
+            <b>{fmtPoints(accountHours(draft))}</b>
           </div>
           <div>
             <span>点卡消耗</span>
