@@ -5,17 +5,35 @@ use std::path::{Path, PathBuf};
 const LEGACY_DIR: &str = "com.chenjinliang.mhxy-ledger";
 const DEFAULT_DIR: &str = "com.iyucode.mhxy-tools";
 
-/// 旧目录存在时始终优先使用，包括空目录及新旧目录同时存在的情况。
+/// 窗口位置插件（tauri-plugin-window-state）的状态文件。插件把它写在 %APPDATA%\<identifier>，
+/// 而 identifier 与旧数据目录同名，所以只有这个文件的旧目录是插件建的，不是旧数据目录。
+const WINDOW_STATE_FILE: &str = ".window-state.json";
+
+/// 旧目录存在时优先使用，包括空目录及新旧目录同时存在的情况；只含窗口位置文件的除外。
 /// 访问失败时返回错误，避免误建新目录而让用户以为历史数据丢失。
 pub(crate) fn resolve_data_dir(base: &Path) -> io::Result<PathBuf> {
     let legacy = base.join(LEGACY_DIR);
-    let dir = if legacy.try_exists()? {
+    let dir = if is_legacy_data_dir(&legacy)? {
         legacy
     } else {
         base.join(DEFAULT_DIR)
     };
     fs::create_dir_all(&dir)?;
     Ok(dir)
+}
+
+fn is_legacy_data_dir(legacy: &Path) -> io::Result<bool> {
+    if !legacy.try_exists()? {
+        return Ok(false);
+    }
+    let mut window_state_only = false;
+    for entry in fs::read_dir(legacy)? {
+        if entry?.file_name() != WINDOW_STATE_FILE {
+            return Ok(true);
+        }
+        window_state_only = true;
+    }
+    Ok(!window_state_only)
 }
 
 #[cfg(test)]
@@ -89,6 +107,34 @@ mod tests {
             fs::read_to_string(new.join("data.json")).unwrap(),
             "new data"
         );
+    }
+
+    #[test]
+    fn legacy_directory_with_only_window_state_is_ignored() {
+        // 窗口位置插件在 %APPDATA%\<identifier> 下建的目录，identifier 恰好与旧数据目录同名
+        let base = TestDir::new();
+        let legacy = base.0.join(LEGACY_DIR);
+        fs::create_dir(&legacy).unwrap();
+        fs::write(legacy.join(".window-state.json"), "{}").unwrap();
+        let new = base.0.join(DEFAULT_DIR);
+        fs::create_dir(&new).unwrap();
+        fs::write(new.join("data.json"), "new data").unwrap();
+        assert_eq!(resolve_data_dir(&base.0).unwrap(), new);
+        assert_eq!(
+            fs::read_to_string(legacy.join(".window-state.json")).unwrap(),
+            "{}"
+        );
+    }
+
+    #[test]
+    fn legacy_directory_with_data_and_window_state_still_wins() {
+        let base = TestDir::new();
+        let legacy = base.0.join(LEGACY_DIR);
+        fs::create_dir(&legacy).unwrap();
+        fs::write(legacy.join(".window-state.json"), "{}").unwrap();
+        fs::write(legacy.join("data.json"), "old data").unwrap();
+        fs::create_dir(base.0.join(DEFAULT_DIR)).unwrap();
+        assert_eq!(resolve_data_dir(&base.0).unwrap(), legacy);
     }
 
     #[test]

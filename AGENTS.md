@@ -23,7 +23,7 @@
 - `data.json` 是用户唯一的记账数据。修改 `DB` 结构时，在 `storage.ts` 的 `normalize` 中兼容旧数据，缺少的字段补默认值；旧文件必须能正常读取，且不能丢失字段。读取失败时应用会停止启动，以免覆盖数据，修改时保持这一行为。
 - 历史记录保存当时的快照：场次的 `pointsPerHour`、`coinPerPoint`，以及掉落的 `itemName`、`unitValue`。修改物品、估值、设置或系统目录时，不得改写已有场次。
 - 系统物品与用户物品分开存储：系统物品的个人估值按系统 ID 存在 `builtinValues`，用户物品存在 `items`。从模板创建的物品会复制信息并分配独立 ID，`templateId` 仅供追溯。
-- 数据目录由 `src-tauri/src/data_path.rs` 决定：旧目录 `com.chenjinliang.mhxy-ledger` 存在时优先使用，否则使用 `com.iyucode.mhxy-tools`，不自动迁移或合并。数据目录与 `tauri.conf.json` 的 `identifier` 相互独立。没有明确要求时，不要修改目录名、目录优先级或 `identifier`。
+- 数据目录由 `src-tauri/src/data_path.rs` 决定：旧目录 `com.chenjinliang.mhxy-ledger` 存在时优先使用，否则使用 `com.iyucode.mhxy-tools`，不自动迁移或合并。窗口位置插件会在 `%APPDATA%<identifier>`（与旧目录同名）写 `.window-state.json`，因此只含这个文件的旧目录不算旧数据目录。数据目录与 `tauri.conf.json` 的 `identifier` 相互独立。没有明确要求时，不要修改目录名、目录优先级或 `identifier`。
 - 写盘保持“临时文件 + rename”的原子方式。前端统一通过 `useStore().update` 修改数据，不要直接修改 `db`，也不要绕过 `saveDB`。
 - `cbg_session.json` 保存藏宝阁 Cookie，与记账数据分开存放，不进入备份。不要打印或提交它的内容，也不要让它出现在截图或日志中。
 
