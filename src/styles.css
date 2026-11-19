@@ -1413,6 +1413,134 @@ nav button.active {
   line-height: 1.4;
 }
 
+/* ---------- 工具箱：入口 ---------- */
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+.tool-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  text-align: left;
+  padding: 18px 20px;
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow:
+    inset 0 0 0 4px var(--panel),
+    inset 0 0 0 5px rgba(184, 135, 58, 0.35),
+    0 2px 8px rgba(110, 70, 20, 0.12);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.tool-card:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 0 0 4px var(--panel),
+    inset 0 0 0 5px rgba(184, 135, 58, 0.55),
+    0 6px 14px rgba(110, 70, 20, 0.2);
+}
+.tool-card b {
+  font-family: var(--font-kai);
+  font-size: 19px;
+  color: var(--red-dark);
+}
+.tool-card .small {
+  line-height: 1.6;
+}
+.tool-tag {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  color: var(--gold);
+  background: var(--gold-pale);
+  border: 1px solid var(--line-strong);
+}
+.tool-tag.off {
+  color: var(--muted);
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+
+/* ---------- 工具箱：固伤攻略 ---------- */
+.guide {
+  user-select: text;
+  line-height: 1.9;
+}
+.guide ul,
+.guide ol {
+  margin: 0;
+  padding-left: 22px;
+}
+.guide li + li {
+  margin-top: 4px;
+}
+.guide-key b {
+  color: var(--red-dark);
+}
+.guide-ref {
+  margin-left: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.guide-tier + .guide-tier {
+  margin-top: 16px;
+}
+.guide-tier h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.guide-tier h3 .small {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.guide-table td {
+  font-size: 13px;
+  vertical-align: top;
+}
+.guide-quotes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.guide-quote {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--input);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold);
+  border-radius: 6px;
+}
+.guide-quote p {
+  margin: 0 0 4px;
+  font-family: var(--font-kai);
+  font-size: 15px;
+  line-height: 1.7;
+}
+.guide-quote .guide-ref {
+  margin-left: 0;
+}
+.guide-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.guide-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.guide-check input {
+  margin-top: 4px;
+}
+.guide > .row {
+  margin-top: 16px;
+}
+
 /* ---------- 工具箱：固伤计算 ---------- */
 .fd-skills {
   flex-wrap: wrap;
