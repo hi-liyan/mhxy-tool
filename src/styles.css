@@ -1413,6 +1413,64 @@ nav button.active {
   line-height: 1.4;
 }
 
+/* ---------- 工具箱：固伤计算 ---------- */
+.fd-skills {
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.fd-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 20px;
+  align-items: start;
+}
+.fd-group + .fd-group,
+.fd-toggles + .fd-group {
+  margin-top: 16px;
+}
+.fd-group h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.fd-group h3 .small {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.fd-toggles {
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 12px;
+}
+.fd-result {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.fd-result p {
+  margin: 0;
+  line-height: 1.6;
+}
+.fd-notes,
+.fd-sources {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  line-height: 1.8;
+}
+.fd-sources {
+  margin: 0;
+  user-select: text;
+}
+.fd-sources li + li {
+  margin-top: 6px;
+}
+.fd-sources code {
+  color: var(--muted);
+  font-size: 12px;
+  word-break: break-all;
+}
+
 /* ---------- 自绘标题栏（macOS / Windows 去掉了原生标题栏） ---------- */
 .titlebar {
   height: 32px;

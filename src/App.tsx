@@ -9,6 +9,7 @@ import SessionPage from "./pages/SessionPage";
 import HistoryPage from "./pages/HistoryPage";
 import AnalysisPage from "./pages/AnalysisPage";
 import ItemsPage from "./pages/ItemsPage";
+import ToolsPage from "./pages/ToolsPage";
 import SettingsPage from "./pages/SettingsPage";
 import { useDesktop } from "./useDesktop";
 import { desktop } from "./storage";
@@ -18,6 +19,7 @@ const PAGES = [
   { key: "history", label: "历史记录" },
   { key: "analysis", label: "统计分析" },
   { key: "items", label: "物品库" },
+  { key: "tools", label: "工具箱" },
   { key: "settings", label: "设置" },
 ] as const;
 type PageKey = (typeof PAGES)[number]["key"];
@@ -75,6 +77,7 @@ export default function App() {
           {page === "history" && <HistoryPage />}
           {page === "analysis" && <AnalysisPage />}
           {page === "items" && <ItemsPage />}
+          {page === "tools" && <ToolsPage />}
           {page === "settings" && <SettingsPage hotkeyErrors={hotkeyErrors} />}
         </main>
       </div>
