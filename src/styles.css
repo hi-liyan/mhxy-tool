@@ -1599,6 +1599,215 @@ nav button.active {
   word-break: break-all;
 }
 
+/* ---------- 工具箱：玩家心得 ---------- */
+.tool-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.tool-tag.new {
+  color: var(--gold-pale);
+  background: var(--red);
+  border-color: var(--red-dark);
+}
+.nav-badge {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--red);
+  color: var(--gold-pale);
+  border: 1px solid var(--gold-light);
+  font-size: 12px;
+  line-height: 18px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-align: center;
+}
+.feed-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.feed-status {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.feed-run {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.feed-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.feed-source {
+  font-size: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--input);
+  color: var(--muted);
+}
+.feed-source.bad {
+  color: var(--loss);
+  border-color: var(--loss);
+}
+.feed-source.off {
+  opacity: 0.55;
+}
+.feed-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.feed-filters select {
+  width: auto;
+}
+.feed-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  user-select: text;
+}
+.feed-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: var(--radius);
+}
+.feed-item.new {
+  border-left-color: var(--red);
+  background: linear-gradient(90deg, var(--gold-pale), var(--panel) 45%);
+}
+.feed-item.ignored {
+  opacity: 0.6;
+}
+.feed-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.feed-new {
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--red);
+  color: var(--gold-pale);
+  font-weight: 700;
+}
+.feed-tag {
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
+.feed-tag.warn {
+  color: var(--loss);
+  border-color: var(--loss);
+  background: transparent;
+}
+.feed-score {
+  margin-left: auto;
+  color: var(--gold);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.feed-title {
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  font-family: var(--font-kai);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--red-dark);
+}
+.feed-title:hover {
+  color: var(--red);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.feed-summary {
+  margin: 0;
+  line-height: 1.7;
+}
+.feed-points {
+  margin: 0;
+  padding: 8px 12px 8px 28px;
+  border-radius: 6px;
+  background: var(--panel-2);
+  line-height: 1.7;
+}
+.feed-points li::marker {
+  color: var(--gold);
+}
+.feed-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.feed-actions .btn {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.feed-more {
+  align-self: center;
+}
+.feed-settings h2 {
+  margin-top: 22px;
+}
+.feed-settings h2:first-child {
+  margin-top: 0;
+}
+.feed-settings p {
+  margin: 0 0 10px;
+  line-height: 1.7;
+}
+.feed-topics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.feed-topic {
+  display: grid;
+  grid-template-columns: auto 160px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.feed-source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.feed-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.feed-settings .actions {
+  margin-top: 20px;
+}
+
 /* ---------- 自绘标题栏（macOS / Windows 去掉了原生标题栏） ---------- */
 .titlebar {
   height: 32px;

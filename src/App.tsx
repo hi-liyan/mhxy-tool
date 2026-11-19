@@ -12,6 +12,7 @@ import ItemsPage from "./pages/ItemsPage";
 import ToolsPage from "./pages/ToolsPage";
 import SettingsPage from "./pages/SettingsPage";
 import { useDesktop } from "./useDesktop";
+import { useFeedSync, useFeedUnread } from "./useFeeds";
 import { desktop } from "./storage";
 
 const PAGES = [
@@ -37,6 +38,8 @@ export default function App() {
     setOfflineRequested(true);
   }, []);
   const { hotkeyErrors } = useDesktop({ onOffline: requestOffline });
+  useFeedSync();
+  const feedUnread = useFeedUnread();
 
   const t0 = startOfToday();
   const today = sumStats(db.sessions.filter((s) => s.startAt >= t0).map((s) => sessionStats(s, now)));
@@ -51,6 +54,11 @@ export default function App() {
           {PAGES.map((p) => (
             <button key={p.key} className={page === p.key ? "active" : ""} onClick={() => setPage(p.key)}>
               {p.label}
+              {p.key === "tools" && feedUnread > 0 && (
+                <span className="nav-badge" title={`玩家心得有 ${feedUnread} 篇新内容`}>
+                  {feedUnread > 99 ? "99+" : feedUnread}
+                </span>
+              )}
             </button>
           ))}
         </nav>

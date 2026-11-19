@@ -145,6 +145,89 @@ export const cbg = {
   goldPrice: async (serverId: number) => (requireTauri(), invoke<GoldQuote>("cbg_gold_price", { serverId })),
 };
 
+// ---------- 玩家心得 ----------
+
+export interface FeedTopic {
+  id: string;
+  name: string;
+  keywords: string[];
+  enabled: boolean;
+}
+
+export interface FeedSettings {
+  auto: boolean;
+  /** 来源开关，没有记录的视为开启 */
+  sources: Record<string, boolean>;
+  topics: FeedTopic[];
+  /** 标题含这些词的不进收件箱 */
+  exclude: string[];
+}
+
+export interface FeedItem {
+  id: string;
+  source: string;
+  url: string;
+  title: string;
+  author: string | null;
+  published: number | null;
+  fetched: number;
+  summary: string;
+  points: string[];
+  tags: string[];
+  mirrors: { source: string; url: string }[];
+  topics: string[];
+  excluded: boolean;
+  relevance: number;
+  score: number;
+  read: boolean;
+  starred: boolean;
+  ignored: boolean;
+}
+
+export interface FeedSource {
+  key: string;
+  name: string;
+  enabled: boolean;
+  status: { ok: boolean; at: number; message: string; added: number } | null;
+}
+
+export interface FeedView {
+  settings: FeedSettings;
+  sources: FeedSource[];
+  last_run: number | null;
+  running: boolean;
+  unread: number;
+  items: FeedItem[];
+}
+
+export interface FeedReport {
+  added: number;
+  matched: number;
+  failed: string[];
+}
+
+export interface FeedUpdate {
+  running: boolean;
+  unread: number;
+}
+
+const FEEDS = "玩家心得";
+
+export const feeds = {
+  available: inTauri,
+  state: async () => (requireTauri(FEEDS), invoke<FeedView>("feeds_state")),
+  unread: async () => (inTauri ? invoke<number>("feeds_unread") : 0),
+  fetchNow: async () => (requireTauri(FEEDS), invoke<FeedReport>("feeds_fetch_now")),
+  /** 批量修改已读、收藏、忽略，返回新的未读数 */
+  mark: async (ids: string[], patch: { read?: boolean; starred?: boolean; ignored?: boolean }) =>
+    (requireTauri(FEEDS), invoke<number>("feeds_mark", { ids, ...patch })),
+  saveSettings: async (settings: FeedSettings) => (requireTauri(FEEDS), invoke<FeedView>("feeds_save_settings", { settings })),
+  /** 用系统浏览器打开原文 */
+  open: async (url: string) => (requireTauri(FEEDS), invoke<void>("feeds_open", { url })),
+  /** 后台抓取开始、每抓完一个来源、结束，以及标记已读后都会触发 */
+  EVENT: "feeds-updated",
+};
+
 // ---------- 桌面端：置顶小窗、托盘、战报图片 ----------
 
 export const desktop = {

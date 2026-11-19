@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
@@ -6,6 +7,7 @@ mod cbg;
 mod data_path;
 #[cfg(desktop)]
 mod desktop;
+mod feeds;
 
 const DATA_FILE: &str = "data.json";
 const REPORT_DIR: &str = "梦幻记账";
@@ -63,19 +65,21 @@ fn get_data_dir(app: AppHandle) -> Result<String, String> {
     Ok(data_dir(&app)?.display().to_string())
 }
 
-/// 在系统文件管理器中打开目录
-fn open_in_file_manager(dir: &Path) -> Result<(), String> {
+/// 用系统默认程序打开目录或网址（目录用文件管理器，网址用默认浏览器）
+pub(crate) fn open_with_system(target: &OsStr) -> std::io::Result<()> {
     #[cfg(target_os = "macos")]
     let program = "open";
     #[cfg(target_os = "windows")]
     let program = "explorer";
     #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
     let program = "xdg-open";
-    std::process::Command::new(program)
-        .arg(dir)
-        .spawn()
-        .map_err(|e| format!("打开目录失败: {e}"))?;
+    std::process::Command::new(program).arg(target).spawn()?;
     Ok(())
+}
+
+/// 在系统文件管理器中打开目录
+fn open_in_file_manager(dir: &Path) -> Result<(), String> {
+    open_with_system(dir.as_os_str()).map_err(|e| format!("打开目录失败: {e}"))
 }
 
 #[tauri::command]
@@ -132,7 +136,7 @@ fn open_report_dir(app: AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let builder = tauri::Builder::default();
+    let builder = tauri::Builder::default().manage(feeds::FeedState::default());
 
     #[cfg(desktop)]
     let builder = builder
@@ -146,6 +150,7 @@ pub fn run() {
         )
         .setup(|app| {
             desktop::setup(app)?;
+            feeds::start(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -169,6 +174,12 @@ pub fn run() {
             cbg::cbg_capture,
             cbg::cbg_logout,
             cbg::cbg_gold_price,
+            feeds::feeds_state,
+            feeds::feeds_unread,
+            feeds::feeds_fetch_now,
+            feeds::feeds_mark,
+            feeds::feeds_save_settings,
+            feeds::feeds_open,
             desktop::tray_update,
             desktop::mini_show,
             desktop::mini_hide,
@@ -191,7 +202,13 @@ pub fn run() {
         cbg::cbg_open_login,
         cbg::cbg_capture,
         cbg::cbg_logout,
-        cbg::cbg_gold_price
+        cbg::cbg_gold_price,
+        feeds::feeds_state,
+        feeds::feeds_unread,
+        feeds::feeds_fetch_now,
+        feeds::feeds_mark,
+        feeds::feeds_save_settings,
+        feeds::feeds_open
     ]);
 
     builder

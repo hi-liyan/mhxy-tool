@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { FixedDamageTool } from "../components/FixedDamageTool";
 import { FixedDamageGuide } from "../components/FixedDamageGuide";
+import { CommunityFeed } from "../components/CommunityFeed";
+import { useFeedUnread } from "../useFeeds";
 
-type ToolKey = "damage" | "guide" | "price";
+type ToolKey = "damage" | "guide" | "feeds" | "price";
 
 const TOOLS: { key: ToolKey; title: string; desc: string; tag: string; ready: boolean }[] = [
   {
@@ -20,6 +22,13 @@ const TOOLS: { key: ToolKey; title: string; desc: string; tag: string; ready: bo
     ready: true,
   },
   {
+    key: "feeds",
+    title: "玩家心得",
+    desc: "每天从梦幻官网、叶子猪、17173、233乐园收集新文章，按固伤、221 等主题筛选打分，新内容会标出来。",
+    tag: "资讯",
+    ready: true,
+  },
+  {
     key: "price",
     title: "装备价格查询",
     desc: "从藏宝阁查询同类装备的在售价格和走势。",
@@ -31,6 +40,7 @@ const TOOLS: { key: ToolKey; title: string; desc: string; tag: string; ready: bo
 export default function ToolsPage() {
   const [tool, setTool] = useState<ToolKey | null>(null);
   const current = TOOLS.find((t) => t.key === tool);
+  const feedUnread = useFeedUnread();
 
   if (current) {
     return (
@@ -43,6 +53,7 @@ export default function ToolsPage() {
         </div>
         {current.key === "damage" && <FixedDamageTool />}
         {current.key === "guide" && <FixedDamageGuide onOpenCalculator={() => setTool("damage")} />}
+        {current.key === "feeds" && <CommunityFeed />}
       </div>
     );
   }
@@ -53,7 +64,10 @@ export default function ToolsPage() {
       <div className="tool-grid">
         {TOOLS.map((t) => (
           <button key={t.key} className="tool-card" disabled={!t.ready} onClick={() => setTool(t.key)}>
-            <span className={t.ready ? "tool-tag" : "tool-tag off"}>{t.tag}</span>
+            <span className="tool-card-tags">
+              <span className={t.ready ? "tool-tag" : "tool-tag off"}>{t.tag}</span>
+              {t.key === "feeds" && feedUnread > 0 && <span className="tool-tag new">{feedUnread} 篇新内容</span>}
+            </span>
             <b>{t.title}</b>
             <span className="muted small">{t.desc}</span>
           </button>

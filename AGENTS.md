@@ -12,7 +12,7 @@
 - `src/utils.ts`（格式化、场次统计）、`src/analysis.ts`（统计分析）：计算口径集中在这里，页面直接复用，不要重复实现。
 - `src/components/`：公共组件。`ui.tsx` 提供 `Modal`、`useUi()`、`Stat` 和 `WanInput`；其他文件分别负责图表、物品、掉落、金价、藏宝阁面板和标题栏。
 - `src/pages/`：每个侧边栏页面一个文件，并在 `src/App.tsx` 的 `PAGES` 中注册。`src/platform.ts`：平台检测，macOS 和 Windows 使用自绘标题栏。
-- `src-tauri/src/lib.rs`：数据文件命令、托盘及命令注册。`data_path.rs`：数据目录解析。`cbg.rs`：藏宝阁登录、Cookie 会话和金价查询。
+- `src-tauri/src/lib.rs`：数据文件命令、托盘及命令注册。`data_path.rs`：数据目录解析。`cbg.rs`：藏宝阁登录、Cookie 会话和金价查询。`feeds/`：玩家心得的抓取、网页解析（`sources.rs`，网站改版时改这里）、主题匹配与打分、后台定时。
 - `src-tauri/tauri.conf.json`、`tauri.windows.conf.json`、`tauri.macos.conf.json`：应用和窗口配置。`capabilities/default.json`：前端可调用的权限。
 - `scripts/release.mjs`、`.github/workflows/release.yml`：自动定版与发布。`tests/`：Node 测试。`src-tauri/gen/schemas/` 是生成文件，不要手改。
 
@@ -23,9 +23,10 @@
 - `data.json` 是用户唯一的记账数据。修改 `DB` 结构时，在 `storage.ts` 的 `normalize` 中兼容旧数据，缺少的字段补默认值；旧文件必须能正常读取，且不能丢失字段。读取失败时应用会停止启动，以免覆盖数据，修改时保持这一行为。
 - 历史记录保存当时的快照：场次的 `pointsPerHour`、`coinPerPoint`，以及掉落的 `itemName`、`unitValue`。修改物品、估值、设置或系统目录时，不得改写已有场次。
 - 系统物品与用户物品分开存储：系统物品的个人估值按系统 ID 存在 `builtinValues`，用户物品存在 `items`。从模板创建的物品会复制信息并分配独立 ID，`templateId` 仅供追溯。
-- 数据目录由 `src-tauri/src/data_path.rs` 决定：旧目录 `com.chenjinliang.mhxy-ledger` 存在时优先使用，否则使用 `com.iyucode.mhxy-tools`，不自动迁移或合并。窗口位置插件会在 `%APPDATA%<identifier>`（与旧目录同名）写 `.window-state.json`，因此只含这个文件的旧目录不算旧数据目录。数据目录与 `tauri.conf.json` 的 `identifier` 相互独立。没有明确要求时，不要修改目录名、目录优先级或 `identifier`。
+- 数据目录由 `src-tauri/src/data_path.rs` 决定：旧目录 `com.chenjinliang.mhxy-ledger` 存在时优先使用，否则使用 `com.iyucode.mhxy-tools`，不自动迁移或合并。窗口位置插件会在 `%APPDATA%\<identifier>`（与旧目录同名）写 `.window-state.json`，因此只含这个文件的旧目录不算旧数据目录。数据目录与 `tauri.conf.json` 的 `identifier` 相互独立。没有明确要求时，不要修改目录名、目录优先级或 `identifier`。
 - 写盘保持“临时文件 + rename”的原子方式。前端统一通过 `useStore().update` 修改数据，不要直接修改 `db`，也不要绕过 `saveDB`。
 - `cbg_session.json` 保存藏宝阁 Cookie，与记账数据分开存放，不进入备份。不要打印或提交它的内容，也不要让它出现在截图或日志中。
+- 玩家心得存在数据目录的 `community.json`，与记账数据分开，不进入备份；读取失败时不覆盖文件。抓取只访问 robots.txt 允许的公开页面，不登录、不带 Cookie，同一站点请求间隔 2 秒，只保存标题、摘要、要点句和链接，不保存全文。User-Agent 只写 `mhxy-tools/版本号`，不要加入个人信息或仓库地址。
 
 ### 前端
 
@@ -70,7 +71,7 @@
 - `pnpm build`：运行 `tsc --noEmit` 和 Vite 构建，相当于本项目的 TypeScript 检查加构建。
 - `pnpm test:catalog`：检查系统目录。直接运行 `node tests/catalog.test.mjs` 时，须在仓库根目录下执行。
 - `pnpm test:release`：测试定版和发布说明的生成逻辑。
-- `cargo fmt --manifest-path src-tauri/Cargo.toml`、`cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets`、`cargo test --manifest-path src-tauri/Cargo.toml`：Rust 的格式化、静态检查和单元测试（`data_path.rs`、`cbg.rs` 中有测试）。
+- `cargo fmt --manifest-path src-tauri/Cargo.toml`、`cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets`、`cargo test --manifest-path src-tauri/Cargo.toml`：Rust 的格式化、静态检查和单元测试（`data_path.rs`、`cbg.rs`、`feeds/` 中有测试）。`cargo test --manifest-path src-tauri/Cargo.toml live_fetch -- --ignored --nocapture` 会真实访问玩家心得的 4 个来源（不写文件），用来检查网站是否改版。
 - `pnpm tauri build`：在本机打包安装包，产物在 `src-tauri/target/release/bundle/`。CI 只打包 Windows x86-64 的 NSIS 和 MSI 安装包。
 
 ## 提交前检查
